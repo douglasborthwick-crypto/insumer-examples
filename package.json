@@ -1,0 +1,28 @@
+{
+  "name": "insumer-examples",
+  "version": "1.0.0",
+  "description": "Code examples for InsumerAPI — on-chain verification across 31 blockchains",
+  "main": "verify.js",
+  "scripts": {
+    "start": "node verify.js"
+  },
+  "keywords": [
+    "blockchain",
+    "token-gating",
+    "nft",
+    "verification",
+    "web3",
+    "ethereum",
+    "solana",
+    "api",
+    "ecdsa",
+    "attestation",
+    "insumer",
+    "multi-chain"
+  ],
+  "author": "The Insumer Model",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}
