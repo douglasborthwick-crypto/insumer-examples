@@ -192,10 +192,10 @@ def main():
     print("=" * 60)
     result = list_merchants(client)
     if result.get("ok"):
-        merchants = result["data"].get("merchants", [])
+        merchants = result["data"] if isinstance(result["data"], list) else []
         print(f"Found {len(merchants)} merchant(s)")
         for m in merchants[:5]:
-            print(f"  {m.get('id', 'N/A')}: {m.get('name', 'N/A')}")
+            print(f"  {m.get('id', 'N/A')}: {m.get('companyName', 'N/A')}")
     else:
         print(json.dumps(result, indent=2))
     print()
