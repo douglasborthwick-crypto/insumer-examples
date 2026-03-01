@@ -151,11 +151,56 @@ app.post("/multi-verify", async (req, res) => {
   });
 });
 
+// --- 4. XRPL verification ---
+// POST /verify-xrpl { xrplWallet, conditions? }
+// If no conditions provided, checks native XRP >= 100 as a demo.
+
+app.post("/verify-xrpl", async (req, res) => {
+  const { xrplWallet, conditions } = req.body;
+
+  if (!xrplWallet) {
+    return res.status(400).json({ error: "xrplWallet is required" });
+  }
+
+  const defaultConditions = [
+    {
+      type: "token_balance",
+      contractAddress: "native",
+      chainId: "xrpl",
+      threshold: 100,
+      label: "XRP >= 100",
+    },
+  ];
+
+  const attestRes = await fetch(`${API}/v1/attest`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      xrplWallet,
+      conditions: conditions || defaultConditions,
+    }),
+  });
+
+  const result = await attestRes.json();
+
+  if (!result.ok) {
+    return res.status(attestRes.status).json(result);
+  }
+
+  res.json({
+    xrplWallet,
+    pass: result.data.attestation.pass,
+    results: result.data.attestation.results,
+    signature: result.data.sig,
+  });
+});
+
 app.listen(3000, () => {
   console.log("InsumerAPI example server running on http://localhost:3000");
   console.log("");
   console.log("Endpoints:");
-  console.log("  POST /verify         — Verify token holdings");
+  console.log("  POST /verify         — Verify EVM token holdings");
   console.log("  GET  /discount       — Check merchant discount");
   console.log("  POST /multi-verify   — Multi-condition verification");
+  console.log("  POST /verify-xrpl    — Verify XRPL token holdings");
 });

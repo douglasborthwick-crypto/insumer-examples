@@ -7,6 +7,8 @@ Demonstrates:
 3. Checking NFT ownership
 4. Multi-condition verification across chains
 5. Listing merchants and checking discounts
+6. XRPL native XRP verification
+7. XRPL trust line token (RLUSD) verification
 
 Usage:
     pip install httpx
@@ -206,6 +208,41 @@ def main():
     print("=" * 60)
     result = check_credits(client)
     print(json.dumps(result, indent=2))
+    print()
+
+    # --- 6. XRPL — native XRP balance ---
+    print("=" * 60)
+    print("6. XRPL — Verify native XRP balance")
+    print("=" * 60)
+    resp = client.post(f"{API}/v1/attest", json={
+        "xrplWallet": "rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn",
+        "conditions": [{
+            "type": "token_balance",
+            "contractAddress": "native",
+            "chainId": "xrpl",
+            "threshold": 100,
+            "label": "XRP >= 100",
+        }],
+    })
+    print(json.dumps(resp.json(), indent=2))
+    print()
+
+    # --- 7. XRPL — RLUSD trust line token ---
+    print("=" * 60)
+    print("7. XRPL — Verify RLUSD trust line balance")
+    print("=" * 60)
+    resp = client.post(f"{API}/v1/attest", json={
+        "xrplWallet": "rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn",
+        "conditions": [{
+            "type": "token_balance",
+            "contractAddress": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+            "chainId": "xrpl",
+            "currency": "RLUSD",
+            "threshold": 10,
+            "label": "RLUSD >= 10 on XRPL",
+        }],
+    })
+    print(json.dumps(resp.json(), indent=2))
 
     client.close()
 

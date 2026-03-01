@@ -61,3 +61,25 @@ CREDITS_RESPONSE=$(curl -s "$API/v1/credits" \
   -H "X-API-Key: $API_KEY")
 
 echo "$CREDITS_RESPONSE" | python3 -m json.tool
+
+# --- Step 4: Verify XRPL wallet holds XRP ---
+echo ""
+echo "Verifying XRPL wallet holds XRP..."
+
+XRPL_RESPONSE=$(curl -s -X POST "$API/v1/attest" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{
+    "xrplWallet": "rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn",
+    "conditions": [
+      {
+        "type": "token_balance",
+        "contractAddress": "native",
+        "chainId": "xrpl",
+        "threshold": 100,
+        "label": "XRP >= 100"
+      }
+    ]
+  }')
+
+echo "$XRPL_RESPONSE" | python3 -m json.tool

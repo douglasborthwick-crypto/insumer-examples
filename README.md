@@ -51,6 +51,51 @@ Response:
 }
 ```
 
+### XRPL verification
+
+Verify native XRP balance:
+
+```bash
+curl -X POST \
+  https://us-central1-insumer-merchant.cloudfunctions.net/insumerApi/v1/attest \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: insr_live_your_key_here" \
+  -d '{
+    "xrplWallet": "rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn",
+    "conditions": [
+      {
+        "type": "token_balance",
+        "contractAddress": "native",
+        "chainId": "xrpl",
+        "threshold": 100,
+        "label": "XRP >= 100"
+      }
+    ]
+  }'
+```
+
+Verify RLUSD trust line token:
+
+```bash
+curl -X POST \
+  https://us-central1-insumer-merchant.cloudfunctions.net/insumerApi/v1/attest \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: insr_live_your_key_here" \
+  -d '{
+    "xrplWallet": "rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn",
+    "conditions": [
+      {
+        "type": "token_balance",
+        "contractAddress": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
+        "chainId": "xrpl",
+        "currency": "RLUSD",
+        "threshold": 10,
+        "label": "RLUSD >= 10 on XRPL"
+      }
+    ]
+  }'
+```
+
 ## Examples
 
 | File | Language | Description |
