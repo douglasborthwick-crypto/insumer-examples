@@ -109,7 +109,7 @@ curl -X POST \
 - **Token balances**: Does this wallet hold at least X of token Y on chain Z?
 - **NFT ownership**: Does this wallet own an NFT from collection Y on chain Z?
 - **Multiple conditions**: Up to 10 conditions per call, across any mix of 32 chains
-- **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Solana, and 23 more
+- **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Solana, XRPL, and 23 more
 
 Every response is signed with ECDSA P-256. Pass the signature to downstream systems as cryptographic proof without re-querying the chain.
 
