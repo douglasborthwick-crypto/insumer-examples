@@ -1,6 +1,6 @@
 # InsumerAPI Examples
 
-Code examples for [InsumerAPI](https://insumermodel.com/developers/) — privacy-preserving on-chain verification across 31 blockchains.
+Code examples for [InsumerAPI](https://insumermodel.com/developers/) — privacy-preserving on-chain verification across 32 blockchains.
 
 An **insumer** is a portmanteau of Investor and Consumer. InsumerAPI verifies token balances and NFT ownership and returns ECDSA-signed boolean results (met/not met). No raw balances exposed.
 
@@ -63,7 +63,7 @@ Response:
 
 - **Token balances**: Does this wallet hold at least X of token Y on chain Z?
 - **NFT ownership**: Does this wallet own an NFT from collection Y on chain Z?
-- **Multiple conditions**: Up to 10 conditions per call, across any mix of 31 chains
+- **Multiple conditions**: Up to 10 conditions per call, across any mix of 32 chains
 - **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Solana, and 23 more
 
 Every response is signed with ECDSA P-256. Pass the signature to downstream systems as cryptographic proof without re-querying the chain.
@@ -77,11 +77,11 @@ Every response is signed with ECDSA P-256. Pass the signature to downstream syst
 - **NFT verification**: Verify collection ownership for Discord bots, games, or community platforms
 - **Holder rewards**: Assign discount tiers based on verified holdings
 
-## Supported Chains (31)
+## Supported Chains (32)
 
 **EVM (30):** Ethereum (1), BNB Chain (56), Base (8453), Avalanche (43114), Polygon (137), Arbitrum (42161), Optimism (10), Chiliz (88888), Soneium (1868), Plume (98866), Sonic (146), Gnosis (100), Mantle (5000), Scroll (534352), Linea (59144), zkSync Era (324), Blast (81457), Taiko (167000), Ronin (2020), Celo (42220), Moonbeam (1284), Moonriver (1285), Viction (88), opBNB (204), World Chain (480), Unichain (130), Ink (57073), Sei (1329), Berachain (80094), ApeChain (33139)
 
-**Non-EVM:** Solana (use `chainId: "solana"`)
+**Non-EVM:** Solana (use `chainId: "solana"`), XRPL (use `chainId: "xrpl"` — native XRP, trust line tokens, NFTs)
 
 ## Agent SDKs
 
