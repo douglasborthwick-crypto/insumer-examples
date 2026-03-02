@@ -147,6 +147,7 @@ Verification credits: $0.04 each. Buy more with USDC via `POST /v1/credits/buy`.
 
 ## Links
 
+- [AI Agent Verification API guide](https://insumermodel.com/ai-agent-verification-api/)
 - [Developer docs](https://insumermodel.com/developers/)
 - [OpenAPI 3.1 spec](https://insumermodel.com/openapi.yaml)
 - [llms.txt](https://insumermodel.com/llms.txt)
