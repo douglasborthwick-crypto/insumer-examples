@@ -19,7 +19,7 @@ Then verify a wallet in one call:
 
 ```bash
 curl -X POST \
-  https://us-central1-insumer-merchant.cloudfunctions.net/insumerApi/v1/attest \
+  https://api.insumermodel.com/v1/attest \
   -H "Content-Type: application/json" \
   -H "X-API-Key: insr_live_your_key_here" \
   -d '{
@@ -43,11 +43,18 @@ Response:
   "ok": true,
   "data": {
     "attestation": {
+      "id": "ATST-A7C3E",
       "pass": true,
-      "results": [{ "label": "SHIB holder", "met": true }]
+      "results": [{ "condition": 0, "label": "SHIB holder", "met": true }],
+      "passCount": 1,
+      "failCount": 0,
+      "attestedAt": "2026-02-28T12:34:57.000Z",
+      "expiresAt": "2026-02-28T13:04:57.000Z"
     },
-    "sig": "MEUCIQDf8..."
-  }
+    "sig": "MEUCIQDf8...",
+    "kid": "insumer-attest-v1"
+  },
+  "meta": { "creditsCharged": 1, "creditsRemaining": 9, "version": "1.0", "timestamp": "..." }
 }
 ```
 
@@ -57,7 +64,7 @@ Verify native XRP balance:
 
 ```bash
 curl -X POST \
-  https://us-central1-insumer-merchant.cloudfunctions.net/insumerApi/v1/attest \
+  https://api.insumermodel.com/v1/attest \
   -H "Content-Type: application/json" \
   -H "X-API-Key: insr_live_your_key_here" \
   -d '{
@@ -78,7 +85,7 @@ Verify RLUSD trust line token:
 
 ```bash
 curl -X POST \
-  https://us-central1-insumer-merchant.cloudfunctions.net/insumerApi/v1/attest \
+  https://api.insumermodel.com/v1/attest \
   -H "Content-Type: application/json" \
   -H "X-API-Key: insr_live_your_key_here" \
   -d '{

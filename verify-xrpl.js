@@ -18,7 +18,7 @@
  *     -d '{"email": "you@example.com", "appName": "xrpl-demo", "tier": "free"}'
  */
 
-const API = "https://us-central1-insumer-merchant.cloudfunctions.net/insumerApi";
+const API = "https://api.insumermodel.com";
 const KEY = process.env.INSUMER_API_KEY;
 
 if (!KEY) {
@@ -70,13 +70,19 @@ function printResult(label, result) {
       console.log(`  ${r.label}: ${r.met ? "PASS" : "FAIL"}`);
     }
     console.log(`Signature: ${result.data.sig.slice(0, 50)}...`);
-  } else if (result.data.trustProfile) {
-    const tp = result.data.trustProfile;
+  } else if (result.data.trust) {
+    const tp = result.data.trust;
     console.log(`Trust ID: ${tp.id}`);
-    console.log(`Dimensions: ${tp.dimensions.length}`);
-    for (const d of tp.dimensions) {
-      console.log(`  ${d.dimension}: ${d.met ? "PASS" : "FAIL"} — ${d.label}`);
+    const dims = Object.keys(tp.dimensions);
+    console.log(`Dimensions: ${dims.length}`);
+    for (const name of dims) {
+      const dim = tp.dimensions[name];
+      console.log(`  ${name}: ${dim.passCount}/${dim.total} passed`);
+      for (const c of dim.checks) {
+        console.log(`    ${c.met ? "[+]" : "[-]"} ${c.label}`);
+      }
     }
+    console.log(`Overall: ${tp.summary.totalPassed}/${tp.summary.totalChecks} checks passed`);
     console.log(`Signature: ${result.data.sig.slice(0, 50)}...`);
   } else {
     console.log(JSON.stringify(result.data, null, 2));

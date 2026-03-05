@@ -23,7 +23,7 @@ import sys
 import json
 import httpx
 
-API = "https://us-central1-insumer-merchant.cloudfunctions.net/insumerApi"
+API = "https://api.insumermodel.com"
 KEY_URL = "https://us-central1-insumer-merchant.cloudfunctions.net/createDeveloperApiKey"
 
 # Vitalik's public wallet (for demo purposes)
