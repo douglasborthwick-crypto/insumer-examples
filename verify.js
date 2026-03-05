@@ -61,6 +61,15 @@ app.post("/verify", async (req, res) => {
   const result = await attestRes.json();
 
   if (!result.ok) {
+    // rpc_failure = data source unavailable, retryable after 2-5s
+    // NOT a verification failure — do not treat as pass: false
+    if (attestRes.status === 503 && result.error?.code === "rpc_failure") {
+      return res.status(503).json({
+        error: "rpc_failure",
+        message: "Data source temporarily unavailable — retry after 2-5 seconds",
+        failedConditions: result.error.failedConditions,
+      });
+    }
     return res.status(attestRes.status).json(result);
   }
 

@@ -67,6 +67,17 @@ def get_api_key() -> str:
     return key
 
 
+def check_rpc_failure(resp: httpx.Response, result: dict) -> bool:
+    """Check for rpc_failure (503) — retryable, NOT a verification failure."""
+    if resp.status_code == 503 and result.get("error", {}).get("code") == "rpc_failure":
+        print("  rpc_failure: data source temporarily unavailable")
+        for fc in result["error"].get("failedConditions", []):
+            print(f"    {fc['source']} chain {fc.get('chainId', '?')}: {fc['message']}")
+        print("  Retry after 2-5 seconds. Do NOT treat as pass: false.")
+        return True
+    return False
+
+
 def verify_token(client: httpx.Client, wallet: str, contract: str,
                  chain_id: int, threshold: int, label: str) -> dict:
     """Verify a single token balance condition."""
@@ -80,7 +91,10 @@ def verify_token(client: httpx.Client, wallet: str, contract: str,
             "label": label,
         }],
     })
-    return resp.json()
+    result = resp.json()
+    if check_rpc_failure(resp, result):
+        return result
+    return result
 
 
 def verify_nft(client: httpx.Client, wallet: str, contract: str,

@@ -121,6 +121,23 @@ curl -X POST \
 
 Every response is signed with ECDSA P-256. Pass the signature to downstream systems as cryptographic proof without re-querying the chain.
 
+## Handling `rpc_failure` Errors
+
+If the API cannot reach a data source (RPC node, Helius, XRPL, Covalent) after retries, it returns HTTP 503 with `error.code: "rpc_failure"`. No attestation is signed, no credits are charged. This is a retryable error — wait 2-5 seconds and retry.
+
+**Important:** `rpc_failure` is NOT a verification failure. Do not treat it as `pass: false`. It means the data source was temporarily unavailable and the API refused to sign an unverified result.
+
+```javascript
+const res = await fetch(`${API}/v1/attest`, { method: "POST", headers, body });
+const result = await res.json();
+
+if (res.status === 503 && result.error?.code === "rpc_failure") {
+  // Retryable — data source temporarily unavailable
+  console.log("Failed sources:", result.error.failedConditions);
+  // Wait 2-5s and retry
+}
+```
+
 ## Use Cases
 
 - **Token-gated access**: Gate APIs, content, or features behind token ownership
