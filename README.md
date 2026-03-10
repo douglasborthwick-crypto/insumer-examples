@@ -161,13 +161,19 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 
 ## Pricing
 
-| Tier | Daily Reads | Verify Credits | Price |
-|------|-------------|----------------|-------|
-| Free | 100/day | 10 (one-time) | $0 |
-| Pro | 10,000/day | 100 (one-time) | $29/mo |
-| Enterprise | 100,000/day | 500 (one-time) | $99/mo |
+| Tier | Daily Reads | Credits | Price |
+|------|-------------|---------|-------|
+| Free | 100/day | 10 | $0 |
+| Pro | 10,000/day | 100 | $9/mo |
+| Enterprise | 100,000/day | 500 | $29/mo |
 
-Verification credits: $0.04 each. Buy more with USDC via `POST /v1/credits/buy`.
+**USDC volume discounts:** $5–$99 = $0.04/call (25 credits/$1) · $100–$499 = $0.03 (33/$1, 25% off) · $500+ = $0.02 (50/$1, 50% off)
+
+**Platform wallets (USDC only):**
+- **EVM:** `0xAd982CB19aCCa2923Df8F687C0614a7700255a23`
+- **Solana:** `6a1mLjefhvSJX1sEX8PTnionbE9DqoYjU6F6bNkT4Ydr`
+
+**Supported USDC chains:** Ethereum, Base, Polygon, Arbitrum, Optimism, BNB Chain, Avalanche, Solana. USDC sent on unsupported chains cannot be recovered. All purchases are final and non-refundable. [Full pricing →](https://insumermodel.com/pricing/)
 
 ## Links
 
