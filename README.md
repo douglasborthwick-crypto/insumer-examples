@@ -10,7 +10,7 @@ Get a free API key (10 verification credits, 100 daily reads):
 
 ```bash
 curl -X POST \
-  https://us-central1-insumer-merchant.cloudfunctions.net/createDeveloperApiKey \
+  https://api.insumermodel.com/v1/keys/create \
   -H "Content-Type: application/json" \
   -d '{"email": "you@example.com", "appName": "my-app", "tier": "free"}'
 ```

@@ -18,7 +18,7 @@ const crypto = require("crypto");
 const app = express();
 app.use(express.json());
 
-const API = "https://us-central1-insumer-merchant.cloudfunctions.net/insumerApi";
+const API = "https://api.insumermodel.com";
 const KEY = process.env.INSUMER_API_KEY;
 
 if (!KEY) {

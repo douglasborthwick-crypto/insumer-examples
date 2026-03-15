@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
-API="https://us-central1-insumer-merchant.cloudfunctions.net/insumerApi"
-KEY_URL="https://us-central1-insumer-merchant.cloudfunctions.net/createDeveloperApiKey"
+API="https://api.insumermodel.com"
+KEY_URL="https://api.insumermodel.com/v1/keys/create"
 
 EMAIL="${INSUMER_EMAIL:-you@example.com}"
 APP_NAME="${INSUMER_APP_NAME:-quickstart-demo}"
