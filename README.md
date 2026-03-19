@@ -43,7 +43,7 @@ Response:
   "ok": true,
   "data": {
     "attestation": {
-      "id": "ATST-A7C3E",
+      "id": "ATST-1A2B3C4D5E6F7890",
       "pass": true,
       "results": [{ "condition": 0, "label": "SHIB holder", "met": true }],
       "passCount": 1,
