@@ -418,13 +418,73 @@ async function main() {
     console.log("[-] Maiat: " + e.message);
   }
 
-  // 2. ThoughtProof — no public demo endpoint
-  console.log("[~] ThoughtProof: no public demo endpoint — skipping live fetch");
-  console.log("    (JWKS verified at api.thoughtproof.ai/.well-known/jwks.json)");
+  // 2. ThoughtProof — requires operator key
+  const TP_KEY = process.env.THOUGHTPROOF_API_KEY;
+  let tpAttestation;
+  if (TP_KEY) {
+    try {
+      const tp = await new Promise((resolve, reject) => {
+        const postData = JSON.stringify({
+          agentId: process.env.THOUGHTPROOF_AGENT_ID || "demo",
+          claim: "Wallet holds sufficient USDC for payment",
+          verdict: "VERIFIED",
+          domain: "financial",
+        });
+        const req = https.request(
+          "https://api.thoughtproof.ai/v1/verify",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-API-Key": TP_KEY,
+            },
+          },
+          (resp) => {
+            let data = "";
+            resp.on("data", (c) => (data += c));
+            resp.on("end", () => {
+              try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+            });
+          }
+        );
+        req.on("error", reject);
+        req.write(postData);
+        req.end();
+      });
+
+      if (tp.jwt) {
+        tpAttestation = {
+          issuer: "https://api.thoughtproof.ai",
+          type: "reasoning_integrity",
+          kid: "tp-attestor-v1",
+          alg: "EdDSA",
+          jwks: "https://api.thoughtproof.ai/.well-known/jwks.json",
+          signed: null, // JWT format — signature is in the JWT itself
+          sig: tp.jwt,
+          expiry: tp.expiresAt,
+        };
+        console.log(
+          "[+] ThoughtProof: fetched (verdict: " + tp.verdict + ", score: " + tp.score + ")"
+        );
+      } else {
+        console.log("[-] ThoughtProof: " + (tp.error || "unexpected response"));
+      }
+    } catch (e) {
+      console.log("[-] ThoughtProof: " + e.message);
+    }
+  } else {
+    console.log(
+      "[~] ThoughtProof: set THOUGHTPROOF_API_KEY to include in demo"
+    );
+    console.log(
+      "    (JWKS verified at api.thoughtproof.ai/.well-known/jwks.json)"
+    );
+  }
 
   // Build multi-attestation payload from available attestations
   const attestations = [];
   if (insumerAttestation) attestations.push(insumerAttestation);
+  if (tpAttestation) attestations.push(tpAttestation);
   if (rnwyAttestation) attestations.push(rnwyAttestation);
   if (maiatAttestation) attestations.push(maiatAttestation);
 
