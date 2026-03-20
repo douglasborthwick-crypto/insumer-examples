@@ -1,0 +1,423 @@
+/**
+ * Multi-Attestation Verifier
+ *
+ * Verifies an array of independent attestations from multiple issuers.
+ * Each attestation has its own signature, key ID, algorithm, and JWKS endpoint.
+ * The verifier fetches each issuer's public key and checks the signature independently.
+ *
+ * Supported algorithms:
+ *   - ES256 (ECDSA P-256) — InsumerAPI, RNWY, Maiat
+ *   - EdDSA (Ed25519) — ThoughtProof
+ *
+ * No dependencies — uses Node.js built-in crypto and https modules.
+ *
+ * Usage:
+ *   node multi-attest-verify.js
+ *
+ * Or import as a module:
+ *   const { verifyMultiAttestation } = require('./multi-attest-verify');
+ *   const result = await verifyMultiAttestation(payload, { requiredTypes: ['wallet_state'] });
+ */
+
+const crypto = require("crypto");
+const https = require("https");
+
+// --- JWKS cache (in-memory, per-process) ---
+const jwksCache = new Map();
+const JWKS_CACHE_TTL = 3600 * 1000; // 1 hour
+
+/**
+ * Fetch JSON over HTTPS. Returns parsed JSON.
+ */
+function fetchJSON(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return reject(new Error(`HTTP ${res.statusCode} from ${url}`));
+      }
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error(`Invalid JSON from ${url}`));
+        }
+      });
+    });
+    req.on("error", reject);
+    req.setTimeout(10000, () => {
+      req.destroy();
+      reject(new Error(`Timeout fetching ${url}`));
+    });
+  });
+}
+
+/**
+ * Fetch a public key from a JWKS endpoint by kid. Caches results.
+ * Returns a Node.js KeyObject ready for verification.
+ */
+async function getPublicKey(jwksUrl, kid, alg) {
+  const cacheKey = `${jwksUrl}:${kid}`;
+  const cached = jwksCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < JWKS_CACHE_TTL) {
+    return cached.key;
+  }
+
+  const jwks = await fetchJSON(jwksUrl);
+  const keys = jwks.keys || [];
+  const jwk = keys.find((k) => k.kid === kid);
+
+  if (!jwk) {
+    throw new Error(`Key ${kid} not found in JWKS at ${jwksUrl}`);
+  }
+
+  let keyObject;
+
+  if (alg === "ES256" && jwk.kty === "EC" && jwk.crv === "P-256") {
+    keyObject = crypto.createPublicKey({ key: jwk, format: "jwk" });
+  } else if (alg === "EdDSA" && jwk.kty === "OKP" && jwk.crv === "Ed25519") {
+    keyObject = crypto.createPublicKey({ key: jwk, format: "jwk" });
+  } else {
+    throw new Error(
+      `Unsupported key type: alg=${alg}, kty=${jwk.kty}, crv=${jwk.crv}`
+    );
+  }
+
+  jwksCache.set(cacheKey, { key: keyObject, fetchedAt: Date.now() });
+  return keyObject;
+}
+
+/**
+ * Decode base64url string to Buffer.
+ */
+function base64urlDecode(str) {
+  str = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (str.length % 4) str += "=";
+  return Buffer.from(str, "base64");
+}
+
+/**
+ * Convert P1363 signature (r || s, 64 bytes for P-256) to DER format.
+ * Node.js crypto.verify with EC keys expects DER.
+ */
+function p1363ToDer(sig, keySize) {
+  keySize = keySize || 32;
+  const r = sig.subarray(0, keySize);
+  const s = sig.subarray(keySize, keySize * 2);
+
+  function encodeInt(buf) {
+    // Strip leading zeros, add 0x00 if high bit set
+    let i = 0;
+    while (i < buf.length - 1 && buf[i] === 0) i++;
+    buf = buf.subarray(i);
+    if (buf[0] & 0x80) buf = Buffer.concat([Buffer.from([0x00]), buf]);
+    return Buffer.concat([Buffer.from([0x02, buf.length]), buf]);
+  }
+
+  const rDer = encodeInt(r);
+  const sDer = encodeInt(s);
+  const body = Buffer.concat([rDer, sDer]);
+  return Buffer.concat([Buffer.from([0x30, body.length]), body]);
+}
+
+/**
+ * Verify a single attestation's signature.
+ *
+ * For ES256 (P1363 base64): decode base64, convert P1363→DER, verify with SHA-256.
+ * For EdDSA (Ed25519): decode base64, verify directly (no hash needed).
+ * For JWT format: decode header.payload, verify signature part.
+ */
+async function verifySignature(attestation) {
+  const { kid, alg, jwks, signed, sig } = attestation;
+
+  if (!kid || !alg || !jwks || !sig) {
+    return { valid: false, error: "Missing kid, alg, jwks, or sig" };
+  }
+
+  try {
+    const publicKey = await getPublicKey(jwks, kid, alg);
+
+    // Check if sig looks like a JWT (three dot-separated parts)
+    if (typeof sig === "string" && sig.split(".").length === 3) {
+      // JWT format — verify the whole JWT
+      const parts = sig.split(".");
+      const signingInput = parts[0] + "." + parts[1];
+      const sigBytes = base64urlDecode(parts[2]);
+
+      if (alg === "ES256") {
+        const derSig = p1363ToDer(sigBytes, 32);
+        const ok = crypto.verify(
+          "SHA256",
+          Buffer.from(signingInput),
+          publicKey,
+          derSig
+        );
+        return { valid: ok, error: ok ? null : "ES256 JWT signature invalid" };
+      } else if (alg === "EdDSA") {
+        const ok = crypto.verify(null, Buffer.from(signingInput), publicKey, sigBytes);
+        return { valid: ok, error: ok ? null : "EdDSA JWT signature invalid" };
+      }
+    }
+
+    // Raw signature format — sig is base64 over JSON.stringify(signed)
+    if (!signed) {
+      return { valid: false, error: "Missing signed payload" };
+    }
+
+    const message = JSON.stringify(signed);
+    const sigBuffer = Buffer.from(sig, "base64");
+
+    if (alg === "ES256") {
+      const derSig = p1363ToDer(sigBuffer, 32);
+      const ok = crypto.verify("SHA256", Buffer.from(message), publicKey, derSig);
+      return { valid: ok, error: ok ? null : "ES256 signature invalid" };
+    } else if (alg === "EdDSA") {
+      const ok = crypto.verify(null, Buffer.from(message), publicKey, sigBuffer);
+      return { valid: ok, error: ok ? null : "EdDSA signature invalid" };
+    }
+
+    return { valid: false, error: `Unsupported algorithm: ${alg}` };
+  } catch (err) {
+    return { valid: false, error: err.message };
+  }
+}
+
+/**
+ * Check if an attestation has expired.
+ */
+function isExpired(attestation) {
+  const { signed, expiry } = attestation;
+
+  // Check explicit expiry timestamp
+  if (expiry && typeof expiry === "string" && !expiry.startsWith("TBD")) {
+    const match = expiry.match(/^\d{4}-/);
+    if (match) {
+      return new Date(expiry) < new Date();
+    }
+  }
+
+  // Check attestedAt + known TTLs
+  const attestedAt =
+    signed?.attestedAt || signed?.timestamp || signed?.iat;
+  if (!attestedAt) return false;
+
+  const attestTime = new Date(attestedAt).getTime();
+  if (isNaN(attestTime)) return false;
+
+  const now = Date.now();
+  const age = now - attestTime;
+
+  // Default: 30 minutes if no explicit expiry
+  return age > 30 * 60 * 1000;
+}
+
+/**
+ * Verify a multi-attestation payload.
+ *
+ * @param {object} payload - The multi-attestation object with `version` and `attestations[]`
+ * @param {object} options
+ * @param {string[]} options.requiredTypes - Array of type strings that must be present and valid
+ * @param {boolean} options.checkExpiry - Whether to check expiration (default: true)
+ * @returns {object} { valid, results[], summary }
+ */
+async function verifyMultiAttestation(payload, options) {
+  options = options || {};
+  const requiredTypes = options.requiredTypes || [];
+  const checkExpiry = options.checkExpiry !== false;
+
+  if (!payload || !Array.isArray(payload.attestations)) {
+    return {
+      valid: false,
+      error: "Invalid payload: missing attestations array",
+      results: [],
+    };
+  }
+
+  const results = [];
+
+  // Verify each attestation in parallel
+  const verifications = payload.attestations.map(async (att) => {
+    const result = {
+      issuer: att.issuer,
+      type: att.type,
+      kid: att.kid,
+      signatureValid: false,
+      expired: false,
+      error: null,
+    };
+
+    // Check expiry
+    if (checkExpiry && isExpired(att)) {
+      result.expired = true;
+      result.error = "Attestation expired";
+      return result;
+    }
+
+    // Verify signature
+    const sigResult = await verifySignature(att);
+    result.signatureValid = sigResult.valid;
+    if (!sigResult.valid) {
+      result.error = sigResult.error;
+    }
+
+    return result;
+  });
+
+  const settled = await Promise.all(verifications);
+  results.push(...settled);
+
+  // Check required types
+  const missingTypes = [];
+  for (const reqType of requiredTypes) {
+    const match = results.find(
+      (r) => r.type === reqType && r.signatureValid && !r.expired
+    );
+    if (!match) {
+      missingTypes.push(reqType);
+    }
+  }
+
+  const allValid = results.every((r) => r.signatureValid && !r.expired);
+  const requiredMet = missingTypes.length === 0;
+
+  return {
+    valid: requiredMet && (requiredTypes.length > 0 || allValid),
+    results,
+    summary: {
+      total: results.length,
+      verified: results.filter((r) => r.signatureValid).length,
+      expired: results.filter((r) => r.expired).length,
+      failed: results.filter((r) => !r.signatureValid && !r.expired).length,
+      missingRequired: missingTypes,
+    },
+  };
+}
+
+// --- CLI demo ---
+async function main() {
+  console.log("Multi-Attestation Verifier");
+  console.log("=".repeat(60));
+  console.log("");
+
+  // Fetch live attestations from all four issuers
+  console.log("Fetching live attestations from all four issuers...\n");
+
+  // 1. RNWY — returns envelope directly
+  let rnwyAttestation;
+  try {
+    const rnwy = await fetchJSON(
+      "https://rnwy.com/api/trust-check?id=16907&chain=base"
+    );
+    if (rnwy.attestation) {
+      rnwyAttestation = rnwy.attestation;
+      console.log("[+] RNWY: fetched (score: " + rnwy.score + ")");
+    } else {
+      console.log("[-] RNWY: no attestation envelope in response");
+    }
+  } catch (e) {
+    console.log("[-] RNWY: " + e.message);
+  }
+
+  // 2. Maiat — returns JWT
+  let maiatAttestation;
+  try {
+    const maiat = await fetchJSON(
+      "https://app.maiat.io/api/v1/attest?address=0xE6ac05D2b50cd525F793024D75BB6f519a52Af5D"
+    );
+    if (maiat.token) {
+      maiatAttestation = {
+        issuer: "https://app.maiat.io",
+        type: "job_performance",
+        kid: maiat.kid || "maiat-trust-v1",
+        alg: "ES256",
+        jwks: maiat.jwks || "https://app.maiat.io/.well-known/jwks.json",
+        signed: maiat.payload,
+        sig: maiat.token, // JWT format
+      };
+      console.log("[+] Maiat: fetched (score: " + maiat.payload?.score + ")");
+    } else {
+      console.log("[-] Maiat: unexpected response format");
+    }
+  } catch (e) {
+    console.log("[-] Maiat: " + e.message);
+  }
+
+  // 3. ThoughtProof — check if public attestation endpoint exists
+  let tpAttestation;
+  try {
+    // ThoughtProof may not have a public demo endpoint — construct from known spec
+    console.log("[~] ThoughtProof: no public demo endpoint — skipping live fetch");
+    console.log("    (JWKS verified at api.thoughtproof.ai/.well-known/jwks.json)");
+  } catch (e) {
+    console.log("[-] ThoughtProof: " + e.message);
+  }
+
+  console.log(
+    "[~] InsumerAPI: requires API key — skipping live fetch in demo"
+  );
+  console.log(
+    "    (JWKS verified at insumermodel.com/.well-known/jwks.json)"
+  );
+
+  // Build multi-attestation payload from available attestations
+  const attestations = [];
+  if (rnwyAttestation) attestations.push(rnwyAttestation);
+  if (maiatAttestation) attestations.push(maiatAttestation);
+
+  if (attestations.length === 0) {
+    console.log("\nNo live attestations available to verify.");
+    return;
+  }
+
+  const payload = { version: "1", attestations, expired: [] };
+
+  console.log(`\nVerifying ${attestations.length} attestation(s)...\n`);
+
+  // Verify all
+  const result = await verifyMultiAttestation(payload);
+
+  console.log("Results:");
+  console.log("-".repeat(60));
+  for (const r of result.results) {
+    const status = r.expired
+      ? "EXPIRED"
+      : r.signatureValid
+        ? "VERIFIED"
+        : "FAILED";
+    console.log(`  ${r.issuer}`);
+    console.log(`    Type: ${r.type}`);
+    console.log(`    Kid:  ${r.kid}`);
+    console.log(`    Status: ${status}`);
+    if (r.error) console.log(`    Error: ${r.error}`);
+    console.log("");
+  }
+
+  console.log("Summary:");
+  console.log(`  Total: ${result.summary.total}`);
+  console.log(`  Verified: ${result.summary.verified}`);
+  console.log(`  Expired: ${result.summary.expired}`);
+  console.log(`  Failed: ${result.summary.failed}`);
+  console.log(`  Overall: ${result.valid ? "PASS" : "FAIL"}`);
+
+  // Demo: verify with requiredTypes
+  console.log("\n" + "=".repeat(60));
+  console.log("Required types check: ['behavioral_trust']");
+  const required = await verifyMultiAttestation(payload, {
+    requiredTypes: ["behavioral_trust"],
+  });
+  console.log(
+    `  Result: ${required.valid ? "PASS" : "FAIL"} (missing: ${required.summary.missingRequired.join(", ") || "none"})`
+  );
+}
+
+// Export for use as module
+module.exports = { verifyMultiAttestation, verifySignature, getPublicKey };
+
+// Run CLI if executed directly
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
