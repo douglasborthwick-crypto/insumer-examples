@@ -113,6 +113,37 @@ curl -X POST \
 | [verify-xrpl.js](verify-xrpl.js) | Node.js | XRPL-focused: XRP, RLUSD, USDC trust lines, NFTs, trust profiles |
 | [multi-attest-verify.js](multi-attest-verify.js) | Node.js | Multi-attestation verifier — verifies signatures from 4 independent issuers (ES256 + EdDSA) |
 
+## Multi-Attestation Verification
+
+Before an AI agent transacts with another agent, a relying party can verify four independent dimensions in a single pass:
+
+| Dimension | Question Answered | Issuer | Algorithm |
+|-----------|-------------------|--------|-----------|
+| **Wallet State** | Privacy-preserving on-chain verification — signed booleans across 32 chains, no balances exposed | [InsumerAPI](https://insumermodel.com) | ES256 (P-256) |
+| **Reasoning Integrity** | Adversarial verification of AI agent reasoning chains — challenging claims before agents act | [ThoughtProof](https://thoughtproof.ai) | EdDSA (Ed25519) |
+| **Behavioral Trust** | Transparent trust scores for crypto wallets and AI agents — sybil detection and reputation tracking | [RNWY](https://rnwy.com) | ES256 (P-256) |
+| **Job Performance** | Trust layer for AI agents — verifying job completion, deliverable quality, and agent reliability | [Maiat](https://app.maiat.io) | ES256 (P-256) |
+
+Each attestation is independently signed by its issuer and verifiable offline via its published JWKS endpoint. No shared keys, no shared infrastructure, no callbacks to the issuer at verification time.
+
+The [`multi-attest-verify.js`](multi-attest-verify.js) reference implementation accepts an array of attestations and verifies whichever dimensions the relying party requires:
+
+```javascript
+const { verifyMultiAttestation } = require('./multi-attest-verify');
+
+const result = await verifyMultiAttestation(payload, {
+  requiredTypes: ['wallet_state', 'behavioral_trust']
+});
+
+if (result.valid) {
+  // Required attestation types present, signatures verified, not expired
+}
+```
+
+A low-value transaction might require only wallet state verification. A high-value contract might require all four dimensions. The relying party decides — not the issuers.
+
+Spec discussion: [Multi-Attestation Payload Format](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
+
 ## What You Can Verify
 
 - **Token balances**: Does this wallet hold at least X of token Y on chain Z?
