@@ -303,7 +303,82 @@ async function main() {
   // Fetch live attestations from all four issuers
   console.log("Fetching live attestations from all four issuers...\n");
 
-  // 1. RNWY — returns envelope directly
+  // 1. InsumerAPI — requires API key
+  const INSUMER_KEY = process.env.INSUMER_API_KEY;
+  let insumerAttestation;
+  if (INSUMER_KEY) {
+    try {
+      const res = await new Promise((resolve, reject) => {
+        const postData = JSON.stringify({
+          wallet: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+          conditions: [
+            {
+              type: "token_balance",
+              contractAddress: "0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE",
+              chainId: 1,
+              threshold: 1000000,
+              label: "SHIB holder",
+            },
+          ],
+        });
+        const req = https.request(
+          "https://api.insumermodel.com/v1/attest",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-API-Key": INSUMER_KEY,
+            },
+          },
+          (resp) => {
+            let data = "";
+            resp.on("data", (c) => (data += c));
+            resp.on("end", () => {
+              try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+            });
+          }
+        );
+        req.on("error", reject);
+        req.write(postData);
+        req.end();
+      });
+
+      if (res.ok && res.data) {
+        const { attestation, sig, kid } = res.data;
+        insumerAttestation = {
+          issuer: "https://api.insumermodel.com",
+          type: "wallet_state",
+          kid: kid,
+          alg: "ES256",
+          jwks: "https://insumermodel.com/.well-known/jwks.json",
+          signed: {
+            id: attestation.id,
+            pass: attestation.pass,
+            results: attestation.results,
+            attestedAt: attestation.attestedAt,
+          },
+          sig: sig,
+          expiry: attestation.expiresAt,
+        };
+        console.log(
+          "[+] InsumerAPI: fetched (pass: " + attestation.pass + ", id: " + attestation.id + ")"
+        );
+      } else {
+        console.log("[-] InsumerAPI: " + (res.error || res.message || "unexpected response"));
+      }
+    } catch (e) {
+      console.log("[-] InsumerAPI: " + e.message);
+    }
+  } else {
+    console.log(
+      "[~] InsumerAPI: set INSUMER_API_KEY to include in demo"
+    );
+    console.log(
+      "    (JWKS verified at insumermodel.com/.well-known/jwks.json)"
+    );
+  }
+
+  // 3. RNWY — returns envelope directly
   let rnwyAttestation;
   try {
     const rnwy = await fetchJSON(
@@ -319,7 +394,7 @@ async function main() {
     console.log("[-] RNWY: " + e.message);
   }
 
-  // 2. Maiat — returns JWT
+  // 4. Maiat — returns JWT
   let maiatAttestation;
   try {
     const maiat = await fetchJSON(
@@ -343,25 +418,13 @@ async function main() {
     console.log("[-] Maiat: " + e.message);
   }
 
-  // 3. ThoughtProof — check if public attestation endpoint exists
-  let tpAttestation;
-  try {
-    // ThoughtProof may not have a public demo endpoint — construct from known spec
-    console.log("[~] ThoughtProof: no public demo endpoint — skipping live fetch");
-    console.log("    (JWKS verified at api.thoughtproof.ai/.well-known/jwks.json)");
-  } catch (e) {
-    console.log("[-] ThoughtProof: " + e.message);
-  }
-
-  console.log(
-    "[~] InsumerAPI: requires API key — skipping live fetch in demo"
-  );
-  console.log(
-    "    (JWKS verified at insumermodel.com/.well-known/jwks.json)"
-  );
+  // 2. ThoughtProof — no public demo endpoint
+  console.log("[~] ThoughtProof: no public demo endpoint — skipping live fetch");
+  console.log("    (JWKS verified at api.thoughtproof.ai/.well-known/jwks.json)");
 
   // Build multi-attestation payload from available attestations
   const attestations = [];
+  if (insumerAttestation) attestations.push(insumerAttestation);
   if (rnwyAttestation) attestations.push(rnwyAttestation);
   if (maiatAttestation) attestations.push(maiatAttestation);
 
