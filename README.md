@@ -112,6 +112,7 @@ curl -X POST \
 | [verify.py](verify.py) | Python | On-chain verification with signature handling |
 | [verify-xrpl.js](verify-xrpl.js) | Node.js | XRPL-focused: XRP, RLUSD, USDC trust lines, NFTs, trust profiles |
 | [multi-attest-verify.js](multi-attest-verify.js) | Node.js | Multi-attestation verifier — verifies signatures from 4 independent issuers (ES256 + EdDSA) |
+| [thoughtproof-verify-example.js](thoughtproof-verify-example.js) | Node.js | ThoughtProof attestation walkthrough — JWKS fetch, EdDSA key import, reasoning integrity format |
 
 ## Multi-Attestation Verification
 
