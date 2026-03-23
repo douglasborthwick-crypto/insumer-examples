@@ -4,6 +4,7 @@
 **Status:** Draft
 **Date:** 2026-03-23
 **Discussion:** [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
+**Blog post:** [Four Issuers, One Verification Pass](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html)
 
 ---
 

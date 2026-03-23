@@ -143,7 +143,7 @@ if (result.valid) {
 
 A low-value transaction might require only wallet state verification. A high-value contract might require all four dimensions. The relying party decides — not the issuers.
 
-Spec discussion: [Multi-Attestation Payload Format](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
+Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Four Issuers, One Verification Pass](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) | Discussion: [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
 
 ## What You Can Verify
 
