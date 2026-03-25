@@ -1,7 +1,7 @@
 {
   "name": "insumer-examples",
   "version": "1.0.0",
-  "description": "Code examples for InsumerAPI — on-chain verification across 32 blockchains",
+  "description": "Code examples for InsumerAPI — on-chain verification across 33 blockchains",
   "main": "verify.js",
   "scripts": {
     "start": "node verify.js"

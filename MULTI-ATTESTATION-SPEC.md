@@ -83,7 +83,7 @@ This format emerged from convergence between four independent issuers: InsumerAP
 
 ### 3.1 InsumerAPI — `wallet_state`
 
-Privacy-preserving on-chain verification. Returns signed booleans across 32 chains (30 EVM + Solana + XRPL). No balances exposed.
+Privacy-preserving on-chain verification. Returns signed booleans across 33 chains (30 EVM + Solana + XRPL + Bitcoin). No balances exposed.
 
 | Property | Value |
 |----------|-------|

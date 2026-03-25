@@ -1,6 +1,6 @@
 # InsumerAPI Examples
 
-Code examples for [InsumerAPI](https://insumermodel.com/developers/) — privacy-preserving on-chain verification across 32 blockchains.
+Code examples for [InsumerAPI](https://insumermodel.com/developers/) — privacy-preserving on-chain verification across 33 blockchains.
 
 An **insumer** is a portmanteau of Investor and Consumer. InsumerAPI verifies token balances and NFT ownership and returns ECDSA-signed boolean results (met/not met). No raw balances exposed.
 
@@ -122,7 +122,7 @@ Before an AI agent transacts with another agent, a relying party can verify four
 
 | Dimension | Question Answered | Issuer | Algorithm |
 |-----------|-------------------|--------|-----------|
-| **Wallet State** | Privacy-preserving on-chain verification — signed booleans across 32 chains, no balances exposed | [InsumerAPI](https://insumermodel.com) | ES256 (P-256) |
+| **Wallet State** | Privacy-preserving on-chain verification — signed booleans across 33 chains, no balances exposed | [InsumerAPI](https://insumermodel.com) | ES256 (P-256) |
 | **Reasoning Integrity** | Adversarial verification of AI agent reasoning chains — challenging claims before agents act | [ThoughtProof](https://thoughtproof.ai) | EdDSA (Ed25519) |
 | **Behavioral Trust** | Transparent trust scores for crypto wallets and AI agents — sybil detection and reputation tracking | [RNWY](https://rnwy.com) | ES256 (P-256) |
 | **Job Performance** | Trust layer for AI agents — verifying job completion, deliverable quality, and agent reliability | [Maiat](https://app.maiat.io) | ES256 (P-256) |
@@ -151,7 +151,7 @@ Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Four Iss
 
 - **Token balances**: Does this wallet hold at least X of token Y on chain Z?
 - **NFT ownership**: Does this wallet own an NFT from collection Y on chain Z?
-- **Multiple conditions**: Up to 10 conditions per call, across any mix of 32 chains
+- **Multiple conditions**: Up to 10 conditions per call, across any mix of 33 chains
 - **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Solana, XRPL, and 23 more
 
 Every response is signed with ECDSA P-256. Pass the signature to downstream systems as cryptographic proof without re-querying the chain.
