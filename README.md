@@ -114,6 +114,7 @@ curl -X POST \
 | [multi-attest-verify.js](multi-attest-verify.js) | Node.js | Multi-attestation verifier — verifies signatures from 4 independent issuers (ES256 + EdDSA) |
 | [thoughtproof-verify-example.js](thoughtproof-verify-example.js) | Node.js | ThoughtProof attestation walkthrough — JWKS fetch, EdDSA key import, reasoning integrity format |
 | [x402-sar-integration.js](x402-sar-integration.js) | Node.js | x402 SAR integration — attestation → payment → delivery proof → offline verification with agent_id threading |
+| [x402-sar-integration-settlementwitness.js](x402-sar-integration-settlementwitness.js) | Node.js | SettlementWitness SAR integration — live endpoint, Ed25519 verification against key registry ([nutstrut](https://github.com/nutstrut)) |
 
 ## Multi-Attestation Verification
 
