@@ -1,41 +1,48 @@
 #!/bin/bash
-# InsumerAPI Quickstart — get a key and verify a wallet in two commands.
-# Usage: INSUMER_EMAIL=you@example.com bash quickstart.sh
+# InsumerAPI Quickstart — generates a key and verifies a wallet.
+# Just run: bash quickstart.sh
 
 set -euo pipefail
 
 API="https://api.insumermodel.com"
-KEY_URL="https://api.insumermodel.com/v1/keys/create"
-
-EMAIL="${INSUMER_EMAIL:-you@example.com}"
-APP_NAME="${INSUMER_APP_NAME:-quickstart-demo}"
 
 # --- Step 1: Get a free API key ---
-echo "Getting API key for ${EMAIL}..."
-
-KEY_RESPONSE=$(curl -s -X POST "$KEY_URL" \
-  -H "Content-Type: application/json" \
-  -d "{\"email\": \"${EMAIL}\", \"appName\": \"${APP_NAME}\", \"tier\": \"free\"}")
-
-API_KEY=$(echo "$KEY_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('key',''))" 2>/dev/null)
-
-if [ -z "$API_KEY" ]; then
-  echo "Key creation response: $KEY_RESPONSE"
+if [ -n "${INSUMER_API_KEY:-}" ]; then
+  API_KEY="$INSUMER_API_KEY"
+  echo "Using existing key: ${API_KEY:0:20}..."
+else
   echo ""
-  echo "If you already have a key, set it: INSUMER_API_KEY=insr_live_... bash quickstart.sh"
-  API_KEY="${INSUMER_API_KEY:-}"
-  if [ -z "$API_KEY" ]; then
+  read -p "Email (for your free API key): " EMAIL
+  if [ -z "$EMAIL" ]; then
+    echo "Email required. Or set INSUMER_API_KEY= to skip."
     exit 1
   fi
-else
-  echo "Got key: ${API_KEY:0:20}..."
+
+  APP_NAME="${INSUMER_APP_NAME:-quickstart-demo}"
+  echo "Creating key for ${EMAIL}..."
+
+  KEY_RESPONSE=$(curl -s -X POST "$API/v1/keys/create" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\": \"${EMAIL}\", \"appName\": \"${APP_NAME}\", \"tier\": \"free\"}")
+
+  API_KEY=$(echo "$KEY_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('key',''))" 2>/dev/null)
+
+  if [ -z "$API_KEY" ]; then
+    echo "Error: $KEY_RESPONSE"
+    exit 1
+  fi
+
+  echo ""
+  echo "Your API key: $API_KEY"
+  echo "Save this — you won't see it again."
+  echo ""
 fi
 
-# --- Step 2: Verify a wallet holds SHIB on Ethereum ---
+# --- Step 2: Verify Vitalik's wallet holds USDC on Ethereum ---
+echo "Verifying wallet holds USDC on Ethereum..."
 echo ""
-echo "Verifying wallet holds SHIB on Ethereum..."
 
-ATTEST_RESPONSE=$(curl -s -X POST "$API/v1/attest" \
+curl -s -X POST "$API/v1/attest" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $API_KEY" \
   -d '{
@@ -43,43 +50,17 @@ ATTEST_RESPONSE=$(curl -s -X POST "$API/v1/attest" \
     "conditions": [
       {
         "type": "token_balance",
-        "contractAddress": "0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE",
+        "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         "chainId": 1,
-        "threshold": 1000000,
-        "label": "SHIB holder"
-      }
-    ]
-  }')
-
-echo "$ATTEST_RESPONSE" | python3 -m json.tool
-
-# --- Step 3: Check credit balance ---
-echo ""
-echo "Checking remaining credits..."
-
-CREDITS_RESPONSE=$(curl -s "$API/v1/credits" \
-  -H "X-API-Key: $API_KEY")
-
-echo "$CREDITS_RESPONSE" | python3 -m json.tool
-
-# --- Step 4: Verify XRPL wallet holds XRP ---
-echo ""
-echo "Verifying XRPL wallet holds XRP..."
-
-XRPL_RESPONSE=$(curl -s -X POST "$API/v1/attest" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
-  -d '{
-    "xrplWallet": "rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn",
-    "conditions": [
-      {
-        "type": "token_balance",
-        "contractAddress": "native",
-        "chainId": "xrpl",
         "threshold": 100,
-        "label": "XRP >= 100"
+        "decimals": 6,
+        "label": "USDC >= 100 on Ethereum"
       }
     ]
-  }')
+  }' | python3 -m json.tool
 
-echo "$XRPL_RESPONSE" | python3 -m json.tool
+# --- Step 3: Check remaining credits ---
+echo ""
+echo "Credits remaining:"
+curl -s "$API/v1/credits" \
+  -H "X-API-Key: $API_KEY" | python3 -m json.tool
