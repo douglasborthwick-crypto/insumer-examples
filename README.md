@@ -1,6 +1,6 @@
 # InsumerAPI Examples
 
-Wallet auth infrastructure for 33 blockchains. One API call, ECDSA-signed boolean result.
+Condition-based access infrastructure for 33 blockchains. Send a wallet and conditions, get a signed boolean. No secrets, no identity, no static credentials.
 
 ## Try It (no key needed)
 
