@@ -164,8 +164,8 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 | Tier | Daily Reads | Credits | Price |
 |------|-------------|---------|-------|
 | Free | 100/day | 10 | $0 |
-| Pro | 10,000/day | 100 | $9/mo |
-| Enterprise | 100,000/day | 500 | $29/mo |
+| Pro | 10,000/day | 1,000/mo | $29/mo |
+| Enterprise | 100,000/day | 5,000/mo | $99/mo |
 
 [Full pricing →](https://insumermodel.com/pricing/)
 
