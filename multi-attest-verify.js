@@ -7,7 +7,7 @@
  *
  * Supported algorithms:
  *   - ES256 (ECDSA P-256) — InsumerAPI, RNWY, Maiat
- *   - EdDSA (Ed25519) — ThoughtProof
+ *   - EdDSA (Ed25519) — ThoughtProof, APS
  *
  * No dependencies — uses Node.js built-in crypto and https modules.
  *
@@ -300,8 +300,8 @@ async function main() {
   console.log("=".repeat(60));
   console.log("");
 
-  // Fetch live attestations from all four issuers
-  console.log("Fetching live attestations from all four issuers...\n");
+  // Fetch live attestations from all five issuers
+  console.log("Fetching live attestations from all five issuers...\n");
 
   // 1. InsumerAPI — requires API key
   const INSUMER_KEY = process.env.INSUMER_API_KEY;
@@ -481,12 +481,39 @@ async function main() {
     );
   }
 
+  // 5. APS (Agent Passport System) — public, no API key
+  let apsAttestation;
+  try {
+    // Warm the cache first (attestation endpoint requires a prior profile fetch)
+    await fetchJSON("https://gateway.aeoess.com/api/v1/public/trust/claude-operator");
+    const aps = await fetchJSON(
+      "https://gateway.aeoess.com/api/v1/public/trust/claude-operator/attestation"
+    );
+    if (aps.jws) {
+      apsAttestation = {
+        issuer: aps.issuer,
+        type: aps.type,
+        kid: aps.kid,
+        alg: aps.alg,
+        jwks: aps.jwks,
+        signed: aps.signed,
+        sig: aps.jws, // APS returns "jws", verifier expects "sig"
+      };
+      console.log("[+] APS: fetched (grade: " + aps.signed?.grade + ", " + aps.signed?.grade_label + ")");
+    } else {
+      console.log("[-] APS: unexpected response format");
+    }
+  } catch (e) {
+    console.log("[-] APS: " + e.message);
+  }
+
   // Build multi-attestation payload from available attestations
   const attestations = [];
   if (insumerAttestation) attestations.push(insumerAttestation);
   if (tpAttestation) attestations.push(tpAttestation);
   if (rnwyAttestation) attestations.push(rnwyAttestation);
   if (maiatAttestation) attestations.push(maiatAttestation);
+  if (apsAttestation) attestations.push(apsAttestation);
 
   if (attestations.length === 0) {
     console.log("\nNo live attestations available to verify.");
