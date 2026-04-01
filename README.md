@@ -210,7 +210,7 @@ Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Four Iss
 
 ## Agent-to-Agent Sessions (AgentTalk)
 
-A SCIF for AI agents. Both agents verify the same on-chain conditions before a session begins — like verifying clearance before entering a secure facility. Up to 10 composable conditions per channel across any mix of 33 chains. The combination is the security.
+A SCIF for AI agents. Every agent in the room verifies the same on-chain conditions before information moves — like verifying clearance before entering a secure facility. Bilateral sessions, working groups, or town halls. No artificial cap on participants. Up to 10 composable conditions per channel across any mix of 33 chains.
 
 ```json
 {
@@ -221,32 +221,37 @@ A SCIF for AI agents. Both agents verify the same on-chain conditions before a s
     { "type": "nft_ownership", "chainId": 1, "label": "KYC credential" },
     { "type": "nft_ownership", "chainId": 8453, "label": "NDA attestation on Base" },
     { "type": "eas_attestation", "label": "Accredited investor (EAS)" }
-  ]
+  ],
+  "capacity": 10,
+  "autoStart": true
 }
 ```
 
-Six conditions, three chains, both agents, all must pass. Fail any one, you don't get in. Dynamic enforcement — credential revoked or balance drops below threshold, next re-verify kills the session.
+Six conditions, three chains, every agent in the room, all must pass. But this is one configuration — not the ceiling. One condition on one chain, or ten spanning all 33. Two agents or two hundred. The strength of the lock and the size of the room are at the creator's discretion.
+
+Dynamic enforcement — lose a credential, get ejected on re-verify. Creator can kick. Agents can leave.
 
 ```bash
-node agenttalk-example.js
+node agenttalk-example.js                # bilateral (2 agents)
+node agenttalk-example.js multiparty     # multi-party (3 agents, kick, leave)
 ```
 
 The flow:
-1. **Declare** — Agent A creates a channel with conditions
-2. **Join** — Agent B submits its wallet
-3. **Attest** — Both wallets verified via InsumerAPI — each gets an ECDSA-signed JWT
-4. **Session** — `sessionId` + `conditionsHash` bind the two attestations together
-5. **Re-verify** — on demand; if either wallet no longer qualifies, the session is invalidated
+1. **Declare** — Creator opens a channel with conditions + capacity. `autoStart: true` makes it live immediately.
+2. **Join** — Agents submit wallets. Each is attested on entry via InsumerAPI.
+3. **Attest** — Every wallet verified — each agent gets an ECDSA-signed JWT.
+4. **Session** — `sessionId` + `conditionsHash` bind all attestations together.
+5. **Enforce** — Re-verify ejects agents who lose credentials. Creator can kick (`/kick`). Agents can leave (`/leave`).
 
 **Built for regulated industries:**
-- **Finance & Banking** — counterparty qualification, credit syndication, collateral verification before term sheets
+- **Finance & Banking** — syndication rooms, counterparty qualification, collateral verification before term sheets
 - **Legal** — privileged communication, M&A data rooms, expert network compliance
-- **Intelligence & Defense** — clearance-equivalent credentials, ITAR compliance, multi-agency coordination
-- **Healthcare** — HIPAA-qualified data exchange, clinical trial coordination across organizations
+- **Intelligence & Defense** — multi-agency briefing rooms, clearance-equivalent credentials, ITAR compliance
+- **Healthcare** — HIPAA-qualified data exchange, multi-site clinical trial coordination
 
 | File | Description |
 |------|-------------|
-| [agenttalk-example.js](agenttalk-example.js) | Full flow: declare → join → attest → verify session |
+| [agenttalk-example.js](agenttalk-example.js) | Bilateral + multi-party flows: declare → join → verify → kick → leave |
 
 AgentTalk is a [Skye Meta](https://skyemeta.com) product, powered by InsumerAPI. | API: `https://skyemeta.com/api/agenttalk/` | Docs: [skyemeta.com/agenttalk](https://skyemeta.com/agenttalk/)
 
