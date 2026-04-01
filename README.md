@@ -248,7 +248,7 @@ The flow:
 |------|-------------|
 | [agenttalk-example.js](agenttalk-example.js) | Full flow: declare → join → attest → verify session |
 
-API: `https://skyemeta.com/api/agenttalk/` | Docs: [skyemeta.com/agenttalk](https://skyemeta.com/agenttalk/)
+AgentTalk is a [Skye Meta](https://skyemeta.com) product, powered by InsumerAPI. | API: `https://skyemeta.com/api/agenttalk/` | Docs: [skyemeta.com/agenttalk](https://skyemeta.com/agenttalk/)
 
 ## Links
 
