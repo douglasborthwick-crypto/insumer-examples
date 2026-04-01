@@ -210,24 +210,39 @@ Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Four Iss
 
 ## Agent-to-Agent Sessions (AgentTalk)
 
-A SCIF for AI agents. Both wallets must satisfy the same on-chain conditions before a session begins — same concept as verifying clearance before entering a secure facility. Sell the token, lose the session.
+A SCIF for AI agents. Both agents verify the same on-chain conditions before a session begins — like verifying clearance before entering a secure facility. Up to 10 composable conditions per channel across any mix of 33 chains. The combination is the security.
+
+```json
+{
+  "conditions": [
+    { "type": "token_balance", "chainId": 1, "threshold": 1000000, "label": "USDC >= $1M on Ethereum" },
+    { "type": "token_balance", "chainId": 137, "threshold": 500000, "label": "USDC >= $500K on Polygon" },
+    { "type": "nft_ownership", "chainId": 1, "label": "Series 7 attestation NFT" },
+    { "type": "nft_ownership", "chainId": 1, "label": "KYC credential" },
+    { "type": "nft_ownership", "chainId": 8453, "label": "NDA attestation on Base" },
+    { "type": "eas_attestation", "label": "Accredited investor (EAS)" }
+  ]
+}
+```
+
+Six conditions, three chains, both agents, all must pass. Fail any one, you don't get in. Dynamic enforcement — credential revoked or balance drops below threshold, next re-verify kills the session.
 
 ```bash
 node agenttalk-example.js
 ```
 
 The flow:
-1. **Declare** — Agent A creates a channel with conditions (token balances, NFTs, trust profiles)
-2. **Join** — Agent B submits its wallet to the channel
+1. **Declare** — Agent A creates a channel with conditions
+2. **Join** — Agent B submits its wallet
 3. **Attest** — Both wallets verified via InsumerAPI — each gets an ECDSA-signed JWT
 4. **Session** — `sessionId` + `conditionsHash` bind the two attestations together
-5. **Re-verify** — check on demand; if either wallet no longer qualifies, the session is invalidated
+5. **Re-verify** — on demand; if either wallet no longer qualifies, the session is invalidated
 
-**Who uses this:**
-- **Supply chain negotiation** — two procurement agents verify $1M+ USDC holdings before sharing pricing data
-- **Financial agent coordination** — portfolio agents only share allocations with governance token holders
-- **Cross-org workflows** — DAO-to-DAO agents verify governance tokens before executing joint proposals
-- **Regulated data exchange** — agents verify compliance attestation NFTs before sharing regulated data
+**Built for regulated industries:**
+- **Finance & Banking** — counterparty qualification, credit syndication, collateral verification before term sheets
+- **Legal** — privileged communication, M&A data rooms, expert network compliance
+- **Intelligence & Defense** — clearance-equivalent credentials, ITAR compliance, multi-agency coordination
+- **Healthcare** — HIPAA-qualified data exchange, clinical trial coordination across organizations
 
 | File | Description |
 |------|-------------|
