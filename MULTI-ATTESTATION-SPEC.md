@@ -93,6 +93,16 @@ Privacy-preserving on-chain verification. Returns signed booleans across 33 chai
 | JWKS | `https://insumermodel.com/.well-known/jwks.json` |
 | Also | `GET /v1/jwks` (API endpoint, 24h cache) |
 
+**Getting started:** Free API key, no credit card. Returns the key immediately.
+
+```bash
+curl -X POST https://api.insumermodel.com/v1/keys/create \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","appName":"my-app","tier":"free"}'
+```
+
+Docs: [insumermodel.com/developers](https://insumermodel.com/developers/)
+
 **Signed payload fields** (these fields are included in `JSON.stringify(signed)` and covered by the signature):
 
 | Field | Type | Description |
@@ -136,6 +146,16 @@ AI reasoning verification. Attests to the integrity and diversity of model reaso
 | JWKS | `https://api.thoughtproof.ai/.well-known/jwks.json` |
 | SDK | `thoughtproof-sdk` on npm (v0.2.1) |
 
+**Getting started:** Free operator key, or pay per-call via x402 (USDC on Base) with no key.
+
+```bash
+curl -X POST https://api.thoughtproof.ai/v1/operators \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my-agent","email":"you@example.com"}'
+```
+
+Docs: [thoughtproof.ai/api](https://thoughtproof.ai/api)
+
 **Signed payload fields (JWT claims):**
 
 | Field | Type | Description |
@@ -164,6 +184,14 @@ On-chain behavioral trust scoring with sybil detection. Keyless (no API key requ
 | On-chain oracle | `0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4` (Base) |
 | SDK | `rnwy-sdk` on npm |
 | Default TTL | 24 hours |
+
+**Getting started:** No API key required. Install the SDK and start querying.
+
+```bash
+npm install rnwy-sdk
+```
+
+Docs: [rnwy.com/api](https://rnwy.com/api)
 
 **Signed payload fields:**
 
@@ -194,6 +222,14 @@ Agent job performance scoring. Keyless (no API key required, rate-limited to 10 
 | Key ID | `maiat-trust-v1` |
 | JWKS | `https://app.maiat.io/.well-known/jwks.json` |
 | Default TTL | 30 minutes |
+
+**Getting started:** No API key required. Call the API directly or install the SDK.
+
+```bash
+npm install @jhinresh/maiat-sdk
+```
+
+Docs: [github.com/JhiNResH/maiat-protocol](https://github.com/JhiNResH/maiat-protocol)
 
 **Signed payload fields (JWT claims):**
 
