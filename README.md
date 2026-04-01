@@ -101,6 +101,13 @@ Verify the signature offline via JWKS: `https://api.insumermodel.com/v1/jwks`
 
 Every response is signed with ECDSA P-256. Pass the wallet auth result to downstream systems as cryptographic proof without re-querying the chain.
 
+**Who uses this:**
+- **Token-gated content** — media platforms, newsletters, community access
+- **Commerce** — wallet-based discounts and eligibility (WooCommerce, Shopify)
+- **Compliance** — KYA (Know Your Agent) checks before DeFi interactions
+- **DAO governance** — verify voting eligibility across chains
+- **Agent trust scoring** — cold-start reputation signal for new AI agents
+
 ## Examples
 
 | File | Language | What it does |
@@ -173,25 +180,60 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 
 ## Multi-Attestation Verification
 
-Before an AI agent transacts with another agent, a relying party can verify four independent dimensions in a single pass:
+Before an AI agent transacts, a relying party can verify five independent dimensions in a single pass:
 
-| Dimension | Question Answered | Issuer | Algorithm |
-|-----------|-------------------|--------|-----------|
-| **Wallet State** | Privacy-preserving on-chain verification — signed booleans across 33 chains, no balances exposed | [InsumerAPI](https://insumermodel.com) | ES256 (P-256) |
-| **Reasoning Integrity** | Adversarial verification of AI agent reasoning chains — challenging claims before agents act | [ThoughtProof](https://thoughtproof.ai) | EdDSA (Ed25519) |
-| **Behavioral Trust** | Transparent trust scores for crypto wallets and AI agents — sybil detection and reputation tracking | [RNWY](https://rnwy.com) | ES256 (P-256) |
-| **Job Performance** | Trust layer for AI agents — verifying job completion, deliverable quality, and agent reliability | [Maiat](https://app.maiat.io) | ES256 (P-256) |
+| Dimension | Question | Issuer | Algorithm |
+|-----------|----------|--------|-----------|
+| **Wallet State** | "What does this wallet hold?" | [InsumerAPI](https://insumermodel.com) | ES256 |
+| **Reasoning Integrity** | "Did this agent reason correctly?" | [ThoughtProof](https://thoughtproof.ai) | EdDSA |
+| **Behavioral Trust** | "Is this agent legitimate?" | [RNWY](https://rnwy.com) | ES256 |
+| **Job Performance** | "Has this agent delivered before?" | [Maiat](https://app.maiat.io) | ES256 |
+| **Passport Grade** | "How deeply is this agent's identity verified?" | [APS](https://github.com/aeoess/agent-passport-system) | EdDSA |
 
-Each attestation is independently signed by its issuer and verifiable offline via its published JWKS endpoint. No shared keys, no shared infrastructure, no callbacks to the issuer at verification time.
+Each attestation is independently signed and verifiable offline via JWKS. No shared keys, no shared infrastructure.
+
+**Who uses this:**
+- **Agent commerce** (x402, ERC-8183) — verify wallet + reasoning + behavior before an agent spends money
+- **DeFi lending** — wallet state + behavioral trust + sybil analysis before extending credit
+- **Autonomous agent platforms** — multi-dimensional trust check before high-stakes tool calls
 
 | File | Description |
 |------|-------------|
-| [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 4 independent issuers (ES256 + EdDSA) |
+| [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 5 independent issuers (ES256 + EdDSA) |
 | [thoughtproof-verify-example.js](thoughtproof-verify-example.js) | ThoughtProof attestation walkthrough — JWKS fetch, EdDSA key import |
 | [x402-sar-integration.js](x402-sar-integration.js) | x402 SAR integration — attestation → payment → delivery proof → offline verification |
 | [x402-sar-integration-settlementwitness.js](x402-sar-integration-settlementwitness.js) | SettlementWitness SAR integration — live endpoint, Ed25519 verification ([nutstrut](https://github.com/nutstrut)) |
 
 Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Four Issuers, One Verification Pass](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) | Discussion: [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
+
+---
+
+## Agent-to-Agent Sessions (AgentTalk)
+
+Condition-gated communication between two agents. Both wallets must satisfy the same on-chain conditions before a session begins. Sell the token, lose the session.
+
+```bash
+node agenttalk-example.js
+```
+
+The flow:
+1. **Declare** — Agent A creates a channel with conditions (token balances, NFTs, trust profiles)
+2. **Join** — Agent B submits its wallet to the channel
+3. **Attest** — Both wallets verified via InsumerAPI — each gets an ECDSA-signed JWT
+4. **Session** — `sessionId` + `conditionsHash` bind the two attestations together
+5. **Re-verify** — check on demand; if either wallet no longer qualifies, the session is invalidated
+
+**Who uses this:**
+- **Supply chain negotiation** — two procurement agents verify $1M+ USDC holdings before sharing pricing data
+- **Financial agent coordination** — portfolio agents only share allocations with governance token holders
+- **Cross-org workflows** — DAO-to-DAO agents verify governance tokens before executing joint proposals
+- **Regulated data exchange** — agents verify compliance attestation NFTs before sharing regulated data
+
+| File | Description |
+|------|-------------|
+| [agenttalk-example.js](agenttalk-example.js) | Full flow: declare → join → attest → verify session |
+
+API: `https://skyemeta.com/api/agenttalk/` | Docs: [skyemeta.com/agenttalk](https://skyemeta.com/agenttalk/)
 
 ## Links
 
