@@ -12,7 +12,7 @@
  *     1. Creator declares a channel with capacity + autoStart
  *     2. Agents join a live session — each attested on entry
  *     3. Re-verify ejects agents who lose credentials
- *     4. Creator can kick, agents can leave
+ *     4. Creator can kick (action: "kick"), agents can leave (action: "leave")
  *
  * No artificial cap on participants — bilateral, working group, or town hall.
  * Every agent must satisfy the same conditions. Lose the credential, get ejected.
@@ -293,10 +293,11 @@ async function multiparty() {
   // --- Step 5: Creator kicks Agent C ---
   console.log("\n5. Creator kicks Agent C...");
 
-  const kickRes = await request(`${BASE_URL}/kick`, {
+  const kickRes = await request(`${BASE_URL}/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      action: "kick",
       channelId,
       wallet: agentC,
       creatorWallet: creator,
@@ -313,10 +314,10 @@ async function multiparty() {
   // --- Step 6: Agent B leaves voluntarily ---
   console.log("\n6. Agent B leaves voluntarily...");
 
-  const leaveRes = await request(`${BASE_URL}/leave`, {
+  const leaveRes = await request(`${BASE_URL}/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ channelId, wallet: agentB }),
+    body: JSON.stringify({ action: "leave", channelId, wallet: agentB }),
   });
 
   if (leaveRes.status === 200) {
