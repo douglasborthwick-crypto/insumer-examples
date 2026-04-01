@@ -210,7 +210,7 @@ Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Four Iss
 
 ## Agent-to-Agent Sessions (AgentTalk)
 
-Condition-gated communication between two agents. Both wallets must satisfy the same on-chain conditions before a session begins. Sell the token, lose the session.
+A SCIF for AI agents. Both wallets must satisfy the same on-chain conditions before a session begins — same concept as verifying clearance before entering a secure facility. Sell the token, lose the session.
 
 ```bash
 node agenttalk-example.js
