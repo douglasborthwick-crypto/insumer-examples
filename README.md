@@ -189,7 +189,7 @@ Before an AI agent transacts, a relying party can verify six independent dimensi
 | **Behavioral Trust** | "Is this agent legitimate?" | [RNWY](https://rnwy.com) | ES256 |
 | **Job Performance** | "Has this agent delivered before?" | [Maiat](https://app.maiat.io) | ES256 |
 | **Passport Grade** | "How deeply is this agent's identity verified?" | [APS](https://github.com/aeoess/agent-passport-system) | EdDSA |
-| **Trust Verification** | "Is this agent still behaving like itself?" | [AgentID](https://getagentid.dev) | EdDSA |
+| **Trust Verification** | "How reliable is this agent's behavior?" | [AgentID](https://getagentid.dev) | EdDSA |
 
 Each attestation is independently signed and verifiable offline via JWKS. No shared keys, no shared infrastructure.
 
@@ -205,32 +205,7 @@ Each attestation is independently signed and verifiable offline via JWKS. No sha
 | [x402-sar-integration.js](x402-sar-integration.js) | x402 SAR integration — attestation → payment → delivery proof → offline verification |
 | [x402-sar-integration-settlementwitness.js](x402-sar-integration-settlementwitness.js) | SettlementWitness SAR integration — live endpoint, Ed25519 verification ([nutstrut](https://github.com/nutstrut)) |
 
-Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Four Issuers, One Verification Pass](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) | Discussion: [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
-
-### Run it yourself
-
-```bash
-# InsumerAPI — free key (instant)
-curl -X POST https://api.insumermodel.com/v1/keys/create \
-  -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com","appName":"your-app","tier":"free"}'
-
-# ThoughtProof — free operator + agent key (instant)
-curl -X POST https://api.thoughtproof.ai/v1/operators \
-  -H "Content-Type: application/json" \
-  -d '{"name":"your-app","email":"you@example.com"}'
-# Then register an agent with the operator key:
-curl -X POST https://api.thoughtproof.ai/v1/agents \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: <operator-key>" \
-  -d '{"name":"your-agent","description":"testing"}'
-
-# RNWY, Maiat, APS, AgentID — public endpoints, no key needed
-
-# Run all six:
-INSUMER_API_KEY=<key> THOUGHTPROOF_API_KEY=<operator-key> \
-  THOUGHTPROOF_AGENT_ID=<agent-id> node multi-attest-verify.js
-```
+Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Multi-Issuer Verification](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) | Discussion: [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
 
 ---
 

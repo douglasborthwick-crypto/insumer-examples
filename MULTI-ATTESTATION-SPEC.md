@@ -4,7 +4,7 @@
 **Status:** Draft
 **Date:** 2026-03-23
 **Discussion:** [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
-**Blog post:** [Four Issuers, One Verification Pass](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html)
+**Blog post:** [Multi-Issuer Verification](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html)
 
 ---
 
@@ -12,7 +12,7 @@
 
 The Multi-Attestation Payload Format defines a composable envelope for bundling independently signed attestations from multiple issuers into a single verifiable object. Each attestation is self-describing — it carries its own algorithm, key identifier, and JWKS discovery endpoint. No shared registry or coordination between issuers is required. A relying party selects attestations by `type`, fetches each issuer's public key via standard JWKS, and verifies signatures independently.
 
-This format emerged from convergence between four independent issuers: InsumerAPI (wallet state), ThoughtProof (reasoning integrity), RNWY (behavioral trust), and Maiat (job performance). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
+This format emerged from convergence between six independent issuers: InsumerAPI (wallet state), ThoughtProof (reasoning integrity), RNWY (behavioral trust), Maiat (job performance), APS (passport grade), and AgentID (trust verification). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
 
 ---
 
@@ -76,6 +76,8 @@ This format emerged from convergence between four independent issuers: InsumerAP
 | `reasoning_integrity` | ThoughtProof | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
 | `behavioral_trust` | RNWY | ES256 | base64 P1363 | 24 hours |
 | `job_performance` | Maiat | ES256 | compact JWS (JWT) | 30 min |
+| `passport_grade` | APS | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
+| `trust_verification` | AgentID | EdDSA (Ed25519) | compact JWS (JWT) | 1 hour |
 
 ---
 
@@ -245,6 +247,86 @@ Docs: [github.com/JhiNResH/maiat-protocol](https://github.com/JhiNResH/maiat-pro
 
 **Signature:** Compact JWS (JWT) with ES256.
 
+
+### 3.5 APS (Agent Passport System) — `passport_grade`
+
+Agent identity verification with graded passports. Measures how deeply an agent's identity has been verified.
+
+| Property | Value |
+|----------|-------|
+| Issuer URI | `https://gateway.aeoess.com` |
+| Algorithm | EdDSA (Ed25519) |
+| Key ID | `gateway-v1` |
+| JWKS | `https://gateway.aeoess.com/.well-known/jwks.json` |
+
+**Getting started:** No API key required. Public trust endpoint.
+
+```bash
+curl https://gateway.aeoess.com/api/v1/public/trust/{agentId}/attestation
+```
+
+Docs: [github.com/aeoess/agent-passport-system](https://github.com/aeoess/agent-passport-system)
+
+**Signed payload fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_id` | string | Agent identifier. |
+| `grade` | number | Passport grade (0-3). |
+| `grade_label` | string | Human-readable grade label. |
+| `risk_level` | string | Risk assessment level. |
+| `context_continuity` | object | Context continuity metrics. |
+| `has_delegation` | boolean | Whether the agent has active delegation. |
+| `evaluatedAt` | string | ISO 8601 evaluation timestamp. |
+
+**Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
+
+
+### 3.6 AgentID — `trust_verification`
+
+Behavioral reliability scoring for AI agents. Measures trust level, behavioral risk, and context continuity.
+
+| Property | Value |
+|----------|-------|
+| Issuer URI | `https://getagentid.dev` |
+| Algorithm | EdDSA (Ed25519) |
+| Key ID | `agentid-2026-03` |
+| JWKS | `https://getagentid.dev/.well-known/jwks.json` |
+| SDK | `getagentid` on PyPI |
+| Default TTL | 1 hour |
+
+**Getting started:** Free account, or use the public endpoints with no key.
+
+```bash
+# Verify any agent (no key required)
+curl -X POST https://getagentid.dev/api/v1/agents/verify \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "agent_xxx"}'
+
+# Get trust header (EdDSA JWT, no key required)
+curl "https://getagentid.dev/api/v1/agents/trust-header?agent_id=agent_xxx"
+```
+
+Docs: [getagentid.dev/docs](https://getagentid.dev/docs)
+
+**Signed payload fields (JWT claims):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_id` | string | Agent identifier. |
+| `trust_level` | number | Numeric trust level. |
+| `trust_level_label` | string | Human-readable trust level (e.g., "L2 — Verified"). |
+| `context_continuity_score` | number | Context continuity metric. |
+| `behavioral_risk_score` | number | Behavioral risk assessment. |
+| `scarring_score` | number | Historical negative signal accumulation. |
+| `negative_signals` | number | Count of negative signals. |
+| `resolved_signals` | number | Count of resolved negative signals. |
+| `attestation_count` | number | Total attestations issued for this agent. |
+| `did` | string | Decentralized identifier (`did:web:getagentid.dev:agent:{id}`). |
+| `evaluatedAt` | string | ISO 8601 evaluation timestamp. |
+
+**Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
+
 ---
 
 ## 4. Verification Algorithm
@@ -361,10 +443,12 @@ The verifier:
 | ThoughtProof | `https://api.thoughtproof.ai/.well-known/jwks.json` |
 | RNWY | `https://rnwy.com/.well-known/jwks.json` |
 | Maiat | `https://app.maiat.io/.well-known/jwks.json` |
+| APS | `https://gateway.aeoess.com/.well-known/jwks.json` |
+| AgentID | `https://getagentid.dev/.well-known/jwks.json` |
 
 ## Appendix B: Algorithm Support Matrix
 
 | Algorithm | Curve | Issuers | Signature Encoding |
 |-----------|-------|---------|-------------------|
 | ES256 | P-256 | InsumerAPI, RNWY, Maiat | P1363 base64 or JWT |
-| EdDSA | Ed25519 | ThoughtProof | JWT |
+| EdDSA | Ed25519 | ThoughtProof, APS, AgentID | JWT |

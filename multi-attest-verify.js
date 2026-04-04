@@ -29,13 +29,15 @@ const JWKS_CACHE_TTL = 3600 * 1000; // 1 hour
 /**
  * Fetch JSON over HTTPS. Returns parsed JSON.
  */
-function fetchJSON(url, redirects) {
-  redirects = redirects || 0;
-  if (redirects > 5) return Promise.reject(new Error(`Too many redirects for ${url}`));
+function fetchJSON(url, maxRedirects) {
+  maxRedirects = maxRedirects === undefined ? 3 : maxRedirects;
   return new Promise((resolve, reject) => {
     const req = https.get(url, (res) => {
-      if (res.statusCode >= 301 && res.statusCode <= 308 && res.headers.location) {
-        return resolve(fetchJSON(res.headers.location, redirects + 1));
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && maxRedirects > 0) {
+        const next = res.headers.location.startsWith("http")
+          ? res.headers.location
+          : new URL(res.headers.location, url).href;
+        return resolve(fetchJSON(next, maxRedirects - 1));
       }
       if (res.statusCode < 200 || res.statusCode >= 300) {
         return reject(new Error(`HTTP ${res.statusCode} from ${url}`));
@@ -519,21 +521,16 @@ async function main() {
       "https://getagentid.dev/api/v1/agents/trust-header?agent_id=agent_d1b7ef01f9af191f"
     );
     if (agentid.header) {
-      // Decode JWT payload for display
-      const jwtParts = agentid.header.split(".");
-      const jwtPayload = JSON.parse(
-        Buffer.from(jwtParts[1].replace(/-/g, "+").replace(/_/g, "/") + "==", "base64").toString()
-      );
       agentidAttestation = {
         issuer: "https://getagentid.dev",
         type: "trust_verification",
         kid: "agentid-2026-03",
         alg: "EdDSA",
         jwks: "https://getagentid.dev/.well-known/jwks.json",
-        signed: null,
+        signed: null, // JWT format
         sig: agentid.header,
       };
-      console.log("[+] AgentID: fetched (trust_level: " + jwtPayload.trust_level + ", " + jwtPayload.trust_level_label + ")");
+      console.log("[+] AgentID: fetched (trust_level: " + agentid.payload?.trust_level + ", " + agentid.payload?.trust_level_label + ")");
     } else {
       console.log("[-] AgentID: unexpected response format");
     }
