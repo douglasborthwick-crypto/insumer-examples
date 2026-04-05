@@ -193,6 +193,19 @@ Before an AI agent transacts, a relying party can verify six independent dimensi
 
 Each attestation is independently signed and verifiable offline via JWKS. No shared keys, no shared infrastructure.
 
+### Add Your Attestation (Issuer #7+)
+
+The envelope is open. If you sign a distinct dimension of agent or wallet trust, you can join the verification pass. Six issuers live today; the reference verifier loads any number.
+
+**Checklist (Harold/AgentID pattern, verified in ~30 min):**
+
+1. **JWKS endpoint** at a stable HTTPS URL, RFC 7517 compliant (`kid`, `kty`, `crv`/`alg`, public key material).
+2. **Sample JWT** posted on [issues/1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1) with all claims documented.
+3. **Signature algorithm** declared — ES256 or EdDSA preferred (reference verifier supports both).
+4. **One-line dimension** — the question your attestation answers (e.g. "What does this wallet hold?").
+
+Post your JWKS URL + sample JWT on [issues/1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1) and tag @douglasborthwick-crypto. We run the verifier against your live signature, flag any issues, and add you to the spec + reference verifier on pass. No fee, no contract, no shared keys. Each issuer stays independent.
+
 **Who uses this:**
 - **Agent commerce** (x402, ERC-8183) — verify wallet + reasoning + behavior before an agent spends money
 - **DeFi lending** — wallet state + behavioral trust + sybil analysis before extending credit
