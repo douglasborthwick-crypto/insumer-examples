@@ -562,15 +562,15 @@ async function main() {
     const ag = await fetchJSON(
       "https://agentgraph.co/api/v1/entities/1e7b584d-2621-47a8-a314-20b9a908353a/attestation/security"
     );
-    if (ag.payload && ag.signature) {
+    if (ag.payload && ag.jws) {
       agentgraphAttestation = {
         issuer: "https://agentgraph.co",
         type: "security_posture",
         kid: ag.key_id || "agentgraph-security-v1",
         alg: ag.algorithm || "EdDSA",
         jwks: ag.jwks_url || "https://agentgraph.co/.well-known/jwks.json",
-        signed: ag.payload,
-        sig: ag.signature,
+        signed: null, // JWT format — payload is in the JWS
+        sig: ag.jws,
       };
       console.log("[+] AgentGraph: fetched (result: " + ag.payload?.scan?.result + ", findings: " + ag.payload?.scan?.findings?.total + ")");
     } else {
