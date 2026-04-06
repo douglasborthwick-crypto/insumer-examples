@@ -7,7 +7,7 @@
  *
  * Supported algorithms:
  *   - ES256 (ECDSA P-256) — InsumerAPI, RNWY, Maiat
- *   - EdDSA (Ed25519) — ThoughtProof, APS, AgentID
+ *   - EdDSA (Ed25519) — ThoughtProof, APS, AgentID, AgentGraph
  *
  * No dependencies — uses Node.js built-in crypto and https modules.
  *
@@ -53,7 +53,7 @@ function fetchJSON(url, maxRedirects) {
       });
     });
     req.on("error", reject);
-    req.setTimeout(10000, () => {
+    req.setTimeout(20000, () => {
       req.destroy();
       reject(new Error(`Timeout fetching ${url}`));
     });
@@ -93,6 +93,17 @@ async function getPublicKey(jwksUrl, kid, alg) {
 
   jwksCache.set(cacheKey, { key: keyObject, fetchedAt: Date.now() });
   return keyObject;
+}
+
+/**
+ * Canonical JSON: sorted keys, compact separators.
+ * Matches Python's json.dumps(sort_keys=True, separators=(",", ":")).
+ */
+function canonicalJSON(obj) {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalJSON).join(",") + "]";
+  const keys = Object.keys(obj).sort();
+  return "{" + keys.map((k) => JSON.stringify(k) + ":" + canonicalJSON(obj[k])).join(",") + "}";
 }
 
 /**
@@ -172,15 +183,22 @@ async function verifySignature(attestation) {
       return { valid: false, error: "Missing signed payload" };
     }
 
-    const message = JSON.stringify(signed);
-    const sigBuffer = Buffer.from(sig, "base64");
+    const sigBuffer = base64urlDecode(sig);
 
     if (alg === "ES256") {
+      const message = JSON.stringify(signed);
       const derSig = p1363ToDer(sigBuffer, 32);
       const ok = crypto.verify("SHA256", Buffer.from(message), publicKey, derSig);
       return { valid: ok, error: ok ? null : "ES256 signature invalid" };
     } else if (alg === "EdDSA") {
-      const ok = crypto.verify(null, Buffer.from(message), publicKey, sigBuffer);
+      // Try insertion-order JSON first, then canonical (sorted keys) for
+      // issuers that sign with Python json.dumps(sort_keys=True)
+      const message = JSON.stringify(signed);
+      let ok = crypto.verify(null, Buffer.from(message), publicKey, sigBuffer);
+      if (!ok) {
+        const canonical = canonicalJSON(signed);
+        ok = crypto.verify(null, Buffer.from(canonical), publicKey, sigBuffer);
+      }
       return { valid: ok, error: ok ? null : "EdDSA signature invalid" };
     }
 
@@ -538,6 +556,30 @@ async function main() {
     console.log("[-] AgentID: " + e.message);
   }
 
+  // 7. AgentGraph — public, no API key
+  let agentgraphAttestation;
+  try {
+    const ag = await fetchJSON(
+      "https://agentgraph.co/api/v1/entities/1e7b584d-2621-47a8-a314-20b9a908353a/attestation/security"
+    );
+    if (ag.payload && ag.signature) {
+      agentgraphAttestation = {
+        issuer: "https://agentgraph.co",
+        type: "security_posture",
+        kid: ag.key_id || "agentgraph-security-v1",
+        alg: ag.algorithm || "EdDSA",
+        jwks: ag.jwks_url || "https://agentgraph.co/.well-known/jwks.json",
+        signed: ag.payload,
+        sig: ag.signature,
+      };
+      console.log("[+] AgentGraph: fetched (result: " + ag.payload?.scan?.result + ", findings: " + ag.payload?.scan?.findings?.total + ")");
+    } else {
+      console.log("[-] AgentGraph: unexpected response format");
+    }
+  } catch (e) {
+    console.log("[-] AgentGraph: " + e.message);
+  }
+
   // Build multi-attestation payload from available attestations
   const attestations = [];
   if (insumerAttestation) attestations.push(insumerAttestation);
@@ -546,6 +588,7 @@ async function main() {
   if (maiatAttestation) attestations.push(maiatAttestation);
   if (apsAttestation) attestations.push(apsAttestation);
   if (agentidAttestation) attestations.push(agentidAttestation);
+  if (agentgraphAttestation) attestations.push(agentgraphAttestation);
 
   if (attestations.length === 0) {
     console.log("\nNo live attestations available to verify.");
