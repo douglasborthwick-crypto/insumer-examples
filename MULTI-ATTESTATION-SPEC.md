@@ -177,7 +177,7 @@ Docs: [thoughtproof.ai/api](https://thoughtproof.ai/api)
 
 ### 3.3 RNWY — `behavioral_trust`
 
-On-chain behavioral trust scoring with sybil detection. Keyless (no API key required).
+On-chain behavioral trust scoring with sybil detection across ERC-8004, Olas, Virtuals, and SATI (Solana) agent registries. Keyless (no API key required). 150,000+ agents indexed, 121,000+ wallets scored, 12 EVM chains + Solana.
 
 | Property | Value |
 |----------|-------|
@@ -185,9 +185,9 @@ On-chain behavioral trust scoring with sybil detection. Keyless (no API key requ
 | Algorithm | ES256 (ECDSA P-256) |
 | Key ID | `rnwy-trust-v1` |
 | JWKS | `https://rnwy.com/.well-known/jwks.json` |
-| On-chain oracle | `0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4` (Base) |
+| On-chain oracle | `0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4` (Base, 150K+ agents) |
 | SDK | `rnwy-sdk` on npm |
-| Default TTL | 24 hours |
+| Default TTL | 24 hours (nightly pipeline refresh at 3 AM UTC) |
 
 **Getting started:** No API key required. Install the SDK and start querying.
 
@@ -201,18 +201,62 @@ Docs: [rnwy.com/api](https://rnwy.com/api)
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agentId` | string | Agent or wallet identifier. |
+| `agentId` | number | Agent identifier. |
 | `chain` | string | Chain where the behavior was evaluated. |
-| `registry` | string | Registry identifier. |
-| `score` | number | Trust score. |
-| `tier` | string | Trust tier derived from score. |
-| `badges` | array | Earned trust badges. |
-| `sybilSeverity` | string | Sybil risk severity level. |
-| `sybilFlags` | array | Specific sybil indicators detected. |
-| `updatedAt` | string | Last score update timestamp. |
+| `registry` | string | Registry identifier (`erc8004`, `olas`, `sati`). |
+| `score` | number | Trust score (0–95). |
+| `tier` | string | Trust tier: `flagged`, `limited`, `developing`, `established`. |
+| `badges` | array | Earned badges and warnings (e.g., `original_owner`, `low_history_reviewers`, `sybil_heavy`). |
+| `sybilSeverity` | string | Sybil risk severity level (`none`, `light`, `moderate`, `heavy`). |
+| `sybilSignals` | array | Specific sybil indicators: `sweep_pattern`, `inhuman_velocity`, `score_clustering`, `coordination`, `common_funder`. |
 | `attestedAt` | string | ISO 8601 attestation timestamp. |
 
 **Signature:** Base64-encoded P1363 (`r || s`, 64 bytes) over `JSON.stringify(signed)`.
+
+**Dual-score model (evidence extension):**
+
+Rather than a single trust score, RNWY produces two independent dimensions. An agent can have high observability and high risk simultaneously — collapsing these into one number loses information.
+
+| Score | Range | Zones | Description |
+|-------|-------|-------|-------------|
+| `signal_depth` | 0–95 | Minimal / Emerging / Established / Deep | Behavioral observability: on-chain activity, commerce history, review patterns, wallet tenure. Capped at 95 — no agent achieves perfect observability. |
+| `risk_intensity` | 0–100 | Clean / Low / Elevated / Severe | Sybil and fraud risk: wallet funding patterns, review velocity, sweep detection, score clustering. |
+
+**Evidence fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `wallet_age_days` | number | Wallet age in days. |
+| `wallet_age_score` | number | Wallet age score (0–100). |
+| `agent_registered_days` | number | Days since agent registration. |
+| `is_original_owner` | boolean | Whether the registering wallet still owns the agent. |
+| `transfer_count` | number | Number of ownership transfers. |
+| `total_feedback` | number | Total reviews received. |
+| `reviewer_diversity_ratio` | number | Ratio of unique reviewers to total reviews. |
+| `reviewer_burst_pct` | number | Percentage of reviews in the densest 24-hour window. |
+| `reviewer_spread_score` | number | Temporal distribution across review period (0 = all clustered). |
+| `sybil_flags` | number | Number of independent sybil signals firing. |
+| `sybil_severity` | string | Sybil risk severity level. |
+| `sybil_weighted_score` | number | Weighted sybil composite score. |
+| `sybil_signals` | array | Active sybil indicators (see signed payload). |
+| `reviewer_credibility.pct_low_history` | number | Percentage of reviewers with low-history wallets. |
+| `reviewer_credibility.dominant_age_bucket` | string | Most common reviewer wallet age bucket. |
+| `reviewer_credibility.label` | string | Credibility label (`Not Credible`, `Low`, `Moderate`, `High`). |
+| `transaction_backed_review_pct` | number | Percentage of reviews tied to verifiable on-chain commerce. |
+| `commerce_jobs_completed` | number | Verifiable on-chain commerce jobs. |
+| `commerce_circularity_pct` | number | Self-dealing detection — fraction of commerce looping back to owner. |
+| `registration_quality_score` | number | Metadata completeness and connectivity score. |
+
+**Reference case:** Agent [Base #1380](https://rnwy.com/explorer/base/1380) — 1,520 reviews, score of zero. 99.7% of reviewers have wallets created the same day they reviewed, four sybil signals firing, 0% of reviews tied to on-chain commerce. A star-counting system would rank it highly.
+
+**Live endpoints:**
+
+| Endpoint | URL |
+|----------|-----|
+| Trust check (signed) | `GET https://rnwy.com/api/trust-check?chain=base&id={agentId}` |
+| Explorer (full evidence) | `https://rnwy.com/explorer/{chain}/{agentId}` |
+| JWKS | `https://rnwy.com/.well-known/jwks.json` |
+| On-chain oracle | [`0xD5fd...e4` on Base](https://basescan.org/address/0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4) |
 
 
 ### 3.4 Maiat — `job_performance`
