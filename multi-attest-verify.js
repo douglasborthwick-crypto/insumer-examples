@@ -664,6 +664,7 @@ async function main() {
     console.log(`    Type: ${r.type}`);
     console.log(`    Kid:  ${r.kid}`);
     console.log(`    Status: ${status}`);
+    if (r.verifiedAt) console.log(`    Verified: ${r.verifiedAt}`);
     if (r.error) console.log(`    Error: ${r.error}`);
     console.log("");
   }
