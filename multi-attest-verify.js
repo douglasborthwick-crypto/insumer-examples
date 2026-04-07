@@ -245,6 +245,7 @@ function isExpired(attestation) {
  * @param {string[]} options.requiredTypes - Array of type strings that must be present and valid
  * @param {boolean} options.checkExpiry - Whether to check expiration (default: true)
  * @returns {object} { valid, results[], summary }
+ *   Each result includes `verifiedAt` (ISO 8601) — when the signature was checked against the issuer's JWKS.
  */
 async function verifyMultiAttestation(payload, options) {
   options = options || {};
@@ -269,6 +270,7 @@ async function verifyMultiAttestation(payload, options) {
       kid: att.kid,
       signatureValid: false,
       expired: false,
+      verifiedAt: new Date().toISOString(),
       error: null,
     };
 
@@ -282,6 +284,7 @@ async function verifyMultiAttestation(payload, options) {
     // Verify signature
     const sigResult = await verifySignature(att);
     result.signatureValid = sigResult.valid;
+    result.verifiedAt = new Date().toISOString();
     if (!sigResult.valid) {
       result.error = sigResult.error;
     }
