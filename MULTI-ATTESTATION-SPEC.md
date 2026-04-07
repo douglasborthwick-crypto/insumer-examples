@@ -177,7 +177,7 @@ Docs: [thoughtproof.ai/api](https://thoughtproof.ai/api)
 
 ### 3.3 RNWY — `behavioral_trust`
 
-On-chain behavioral trust scoring with sybil detection across ERC-8004, Olas, Virtuals, and SATI (Solana) agent registries. Keyless (no API key required). 150,000+ agents indexed, 121,000+ wallets scored, 12 EVM chains + Solana.
+On-chain behavioral trust scoring with sybil detection across ERC-8004, Olas, Virtuals, and SATI (Solana) agent registries. Dual-score architecture: Signal Depth (behavioral observability) and Risk Intensity (sybil/fraud risk) are independent axes — collapsing them into a single number loses information. Keyless (no API key required).
 
 | Property | Value |
 |----------|-------|
@@ -185,7 +185,7 @@ On-chain behavioral trust scoring with sybil detection across ERC-8004, Olas, Vi
 | Algorithm | ES256 (ECDSA P-256) |
 | Key ID | `rnwy-trust-v1` |
 | JWKS | `https://rnwy.com/.well-known/jwks.json` |
-| On-chain oracle | `0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4` (Base, 150K+ agents) |
+| On-chain oracle | [`0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4`](https://basescan.org/address/0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4) (Base, 150K+ agents) |
 | SDK | `rnwy-sdk` on npm |
 | Default TTL | 24 hours (nightly pipeline refresh at 3 AM UTC) |
 
@@ -197,25 +197,29 @@ npm install rnwy-sdk
 
 Docs: [rnwy.com/api](https://rnwy.com/api)
 
+**Coverage:** 150,000+ agents indexed across ERC-8004, Olas, Virtuals, and SATI (Solana). 121,000+ wallets scored. 12 EVM chains + Solana. 1.7M+ on-chain commerce jobs indexed.
+
 **Signed payload fields:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `agentId` | number | Agent identifier. |
-| `chain` | string | Chain where the behavior was evaluated. |
+| `chain` | string | Chain where the behavior was evaluated (e.g., `base`). |
 | `registry` | string | Registry identifier (`erc8004`, `olas`, `sati`). |
-| `score` | number | Trust score (0–95). |
+| `score` | number | Trust score (0–95). Capped at 95; no agent achieves perfect observability. |
 | `tier` | string | Trust tier: `flagged`, `limited`, `developing`, `established`. |
 | `badges` | array | Earned badges and warnings (e.g., `original_owner`, `low_history_reviewers`, `sybil_heavy`). |
-| `sybilSeverity` | string | Sybil risk severity level (`none`, `light`, `moderate`, `heavy`). |
+| `sybilSeverity` | string | Sybil risk severity: `none`, `low`, `moderate`, or `heavy`. |
 | `sybilSignals` | array | Specific sybil indicators: `sweep_pattern`, `inhuman_velocity`, `score_clustering`, `coordination`, `common_funder`. |
 | `attestedAt` | string | ISO 8601 attestation timestamp. |
 
 **Signature:** Base64-encoded P1363 (`r || s`, 64 bytes) over `JSON.stringify(signed)`.
 
-**Dual-score model (evidence extension):**
+#### 3.3.1 Evidence Extension (proposed)
 
-Rather than a single trust score, RNWY produces two independent dimensions. An agent can have high observability and high risk simultaneously — collapsing these into one number loses information.
+The following evidence fields are served by the explorer API and are not yet covered by the signed payload. The proposal is to incorporate them into the signed object in a future update, making the evidence verifiable end-to-end.
+
+**Dual scores (independent axes, not one number):**
 
 | Score | Range | Zones | Description |
 |-------|-------|-------|-------------|
@@ -247,14 +251,26 @@ Rather than a single trust score, RNWY produces two independent dimensions. An a
 | `commerce_circularity_pct` | number | Self-dealing detection — fraction of commerce looping back to owner. |
 | `registration_quality_score` | number | Metadata completeness and connectivity score. |
 
+**Sybil detection signals (first-class, not bolted on):**
+
+| Signal | Description |
+|--------|-------------|
+| `common_funder` | Multiple reviewer wallets funded by the same source. |
+| `inhuman_velocity` | Review submission rate exceeding human capability. |
+| `sweep_pattern` | Reviewers spread across hundreds of agents without returning. |
+| `score_clustering` | Reviewers consistently assigning identical scores. |
+| `coordination` | Agent-level modifier detecting coordinated reviewer behavior. |
+
 **Reference case:** Agent [Base #1380](https://rnwy.com/explorer/base/1380) — 1,520 reviews, score of zero. 99.7% of reviewers have wallets created the same day they reviewed, four sybil signals firing, 0% of reviews tied to on-chain commerce. A star-counting system would rank it highly.
+
 
 **Live endpoints:**
 
 | Endpoint | URL |
 |----------|-----|
 | Trust check (signed) | `GET https://rnwy.com/api/trust-check?chain=base&id={agentId}` |
-| Explorer (full evidence) | `https://rnwy.com/explorer/{chain}/{agentId}` |
+| Explorer (full evidence) | `GET https://rnwy.com/api/explorer?id={agentId}&chain=base` |
+| Explorer (web) | `https://rnwy.com/explorer/{chain}/{agentId}` |
 | JWKS | `https://rnwy.com/.well-known/jwks.json` |
 | On-chain oracle | [`0xD5fd...e4` on Base](https://basescan.org/address/0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4) |
 
