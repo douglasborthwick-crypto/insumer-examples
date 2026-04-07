@@ -12,7 +12,7 @@
 
 The Multi-Attestation Payload Format defines a composable envelope for bundling independently signed attestations from multiple issuers into a single verifiable object. Each attestation is self-describing — it carries its own algorithm, key identifier, and JWKS discovery endpoint. No shared registry or coordination between issuers is required. A relying party selects attestations by `type`, fetches each issuer's public key via standard JWKS, and verifies signatures independently.
 
-This format emerged from convergence between six independent issuers: InsumerAPI (wallet state), ThoughtProof (reasoning integrity), RNWY (behavioral trust), Maiat (job performance), APS (passport grade), and AgentID (trust verification). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
+This format emerged from convergence between eight independent issuers: InsumerAPI (wallet state), ThoughtProof (reasoning integrity), RNWY (behavioral trust), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), and SAR (settlement witness). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
 
 ---
 
@@ -78,6 +78,8 @@ This format emerged from convergence between six independent issuers: InsumerAPI
 | `job_performance` | Maiat | ES256 | compact JWS (JWT) | 30 min |
 | `passport_grade` | APS | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
 | `trust_verification` | AgentID | EdDSA (Ed25519) | compact JWS (JWT) | 1 hour |
+| `security_posture` | AgentGraph | EdDSA (Ed25519) | compact JWS (JWT) | 24 hours |
+| `settlement_witness` | SAR | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
 
 ---
 
@@ -327,6 +329,83 @@ Docs: [getagentid.dev/docs](https://getagentid.dev/docs)
 
 **Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
 
+
+### 3.7 AgentGraph — `security_posture`
+
+Source code vulnerability scanning for AI agents. Answers: has this agent's code been scanned, and what is the severity profile?
+
+| Property | Value |
+|----------|-------|
+| Issuer URI | `https://agentgraph.co` |
+| Algorithm | EdDSA (Ed25519) |
+| Key ID | `agentgraph-security-v1` |
+| JWKS | `https://agentgraph.co/.well-known/jwks.json` |
+| Default TTL | 24 hours |
+
+**Getting started:** No API key required. Any scanned entity returns a signed attestation.
+
+```bash
+curl https://agentgraph.co/api/v1/entities/{entity_id}/attestation/security
+```
+
+Docs: [github.com/agentgraph-co/agentgraph](https://github.com/agentgraph-co/agentgraph)
+
+**Signed payload fields (JWT claims):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | `SecurityPostureAttestation` |
+| `issuer` | object | `{ id, name, url }` — issuer metadata. |
+| `subject` | object | `{ id, entity_id, display_name }` — scanned entity. |
+| `scan.result` | string | `clean`, `warnings`, or `critical`. |
+| `scan.findings` | object | `{ critical, high, medium, total }` — finding counts by severity. |
+| `scan.checks` | object | Boolean checks: `no_critical_findings`, `no_high_findings`, `has_readme`, `has_license`, `has_tests`. |
+| `scan.positiveSignals` | array | Security best practices detected. |
+| `scan.filesScanned` | number | Number of files analyzed. |
+| `scan.framework` | string | Detected framework (mcp, langchain, crewai, etc.). |
+| `trust.overall` | number | Composite trust score (0.0–1.0). |
+| `issuedAt` | string | ISO 8601 attestation timestamp. |
+| `expiresAt` | string | ISO 8601 expiration timestamp. |
+
+**Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
+
+
+### 3.8 SAR (SettlementWitness) — `settlement_witness`
+
+Post-execution delivery attestation. Answers: was the task actually delivered as specified?
+
+| Property | Value |
+|----------|-------|
+| Issuer URI | `https://defaultverifier.com` |
+| Algorithm | EdDSA (Ed25519) |
+| Key ID | `sar-prod-ed25519-02` |
+| JWKS | `https://defaultverifier.com/.well-known/jwks.json` |
+
+**Getting started:** No API key required. POST a task spec and output to get a signed verdict.
+
+```bash
+curl -X POST https://defaultverifier.com/settlement-witness/attest \
+  -H "Content-Type: application/json" \
+  -d '{"task_id":"example","spec":{"expected":"hello"},"output":{"expected":"hello"}}'
+```
+
+Docs: [github.com/nutstrut](https://github.com/nutstrut)
+
+**Signed payload fields (JWT claims):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `task_id_hash` | string | `sha256:...` hash of the task identifier. |
+| `verdict` | string | `PASS`, `FAIL`, or `INDETERMINATE`. |
+| `confidence` | number | Confidence score (0.0–1.0). |
+| `reason_code` | string | Reason for the verdict (e.g., `SPEC_MATCH`). |
+| `ts` | string | ISO 8601 timestamp. |
+| `verifier_kid` | string | Key ID used for signing. |
+| `receipt_id` | string | `sha256:...` derived from the signed core. |
+
+**Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
+
+
 ---
 
 ## 4. Verification Algorithm
@@ -445,10 +524,12 @@ The verifier:
 | Maiat | `https://app.maiat.io/.well-known/jwks.json` |
 | APS | `https://gateway.aeoess.com/.well-known/jwks.json` |
 | AgentID | `https://getagentid.dev/.well-known/jwks.json` |
+| AgentGraph | `https://agentgraph.co/.well-known/jwks.json` |
+| SAR | `https://defaultverifier.com/.well-known/jwks.json` |
 
 ## Appendix B: Algorithm Support Matrix
 
 | Algorithm | Curve | Issuers | Signature Encoding |
 |-----------|-------|---------|-------------------|
 | ES256 | P-256 | InsumerAPI, RNWY, Maiat | P1363 base64 or JWT |
-| EdDSA | Ed25519 | ThoughtProof, APS, AgentID | JWT |
+| EdDSA | Ed25519 | ThoughtProof, APS, AgentID, AgentGraph, SAR | JWT |
