@@ -7,7 +7,7 @@
  *
  * Supported algorithms:
  *   - ES256 (ECDSA P-256) — InsumerAPI, RNWY, Maiat
- *   - EdDSA (Ed25519) — ThoughtProof, APS, AgentID, AgentGraph
+ *   - EdDSA (Ed25519) — ThoughtProof, APS, AgentID, AgentGraph, SAR
  *
  * No dependencies — uses Node.js built-in crypto and https modules.
  *
@@ -580,6 +580,52 @@ async function main() {
     console.log("[-] AgentGraph: " + e.message);
   }
 
+  // 8. SAR (SettlementWitness) — public, no API key
+  let sarAttestation;
+  try {
+    const sar = await new Promise((resolve, reject) => {
+      const postData = JSON.stringify({
+        task_id: "attest-001",
+        spec: { expected: "hello" },
+        output: { expected: "hello" },
+      });
+      const req = https.request(
+        "https://defaultverifier.com/settlement-witness/attest",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+        (resp) => {
+          let data = "";
+          resp.on("data", (c) => (data += c));
+          resp.on("end", () => {
+            try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+          });
+        }
+      );
+      req.on("error", reject);
+      req.setTimeout(20000, () => { req.destroy(); reject(new Error("Timeout")); });
+      req.write(postData);
+      req.end();
+    });
+    if (sar.jws) {
+      sarAttestation = {
+        issuer: sar.issuer || "https://defaultverifier.com",
+        type: sar.type || "settlement_witness",
+        kid: sar.kid || "sar-prod-ed25519-02",
+        alg: sar.alg || "EdDSA",
+        jwks: sar.jwks || "https://defaultverifier.com/.well-known/jwks.json",
+        signed: null, // JWT format
+        sig: sar.jws,
+      };
+      console.log("[+] SAR: fetched (verdict: " + sar.payload?.verdict + ", confidence: " + sar.payload?.confidence + ")");
+    } else {
+      console.log("[-] SAR: unexpected response format");
+    }
+  } catch (e) {
+    console.log("[-] SAR: " + e.message);
+  }
+
   // Build multi-attestation payload from available attestations
   const attestations = [];
   if (insumerAttestation) attestations.push(insumerAttestation);
@@ -589,6 +635,7 @@ async function main() {
   if (apsAttestation) attestations.push(apsAttestation);
   if (agentidAttestation) attestations.push(agentidAttestation);
   if (agentgraphAttestation) attestations.push(agentgraphAttestation);
+  if (sarAttestation) attestations.push(sarAttestation);
 
   if (attestations.length === 0) {
     console.log("\nNo live attestations available to verify.");
