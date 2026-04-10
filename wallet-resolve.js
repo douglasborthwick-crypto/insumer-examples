@@ -127,11 +127,13 @@ async function fetchInsumerAPI(wallet, solanaWallet, xrplWallet, bitcoinWallet) 
 
 /**
  * 2. RNWY — behavioral_trust.
- * Wallet lookup: rnwy shipped /api/trust-check?wallet={addr} on Apr 10, 2026.
- * Bound wallets return a full signed attestation tied to the mapped agent.
- * Unknown wallets return {found:false} and we fall back to the demo agent.
- * Signed block binds to agentId, not wallet — wallet resolution is at the
- * transport layer. Treat as wallet-bound at the orchestrator level.
+ * Wallet lookup shipped Apr 10, 2026 at /api/trust-check?wallet={addr}.
+ * rnwy-trust-v2 shipped the same day with `owner` and `expiry` inside the
+ * signed block, but the v2 public key has not yet been published to the
+ * JWKS — so v2 signatures cannot be verified end-to-end against
+ * https://rnwy.com/.well-known/jwks.json. Pinning to v1 (attestationV1)
+ * until the v2 kid lands in JWKS, then flipping back to prefer v2. Unknown
+ * wallets return {found:false} and we fall back to the demo agent.
  */
 async function fetchRNWY(chainContext) {
   const wallet = chainContext.wallet;
@@ -140,8 +142,10 @@ async function fetchRNWY(chainContext) {
       const lookup = await fetchJSON(
         "https://rnwy.com/api/trust-check?wallet=" + wallet
       );
-      if (lookup.attestation && lookup.found !== false) {
-        return lookup.attestation;
+      // Pin to v1 (attestationV1) until v2 kid is in JWKS; prefer v2 once verifiable.
+      const att = lookup.attestationV1 || lookup.attestation;
+      if (att && lookup.found !== false) {
+        return att;
       }
     } catch (e) {
       // Fall through to demo agent on error
@@ -359,8 +363,17 @@ async function fetchMaiat(chainContext) {
  * 8. SAR (SettlementWitness) — settlement_witness.
  * Wallet lookup: counterparty field accepted at envelope level. The signed
  * payload commits to spec/output match — counterparty flows through but is
- * NOT cryptographically bound. We pass the wallet anyway so the envelope
- * surfaces the counterparty for consumers that want to correlate.
+ * NOT cryptographically bound (confirmed by decoding the /attest JWS).
+ * nutstrut committed Apr 10 to adding counterparty to the signed payload in
+ * a future release; until then the binding is transport-layer.
+ *
+ * Apr 10: Wallet-indexed receipt history is now available via
+ *   GET https://defaultverifier.com/settlement-witness/receipts?wallet={addr}
+ * which returns the array of signed receipt records associated with a
+ * counterparty. This reference script still uses /attest for the dimension
+ * signature to keep the envelope shape uniform across providers. Consumers
+ * that want per-wallet delivery history should call /receipts directly —
+ * see the SkyeProfile orchestrator for an example composition.
  */
 async function fetchSAR(chainContext) {
   var body = Object.assign({}, DEMO_IDS.sar);
