@@ -213,9 +213,34 @@ async function fetchAgentID(chainContext) {
 
 /**
  * 5. AgentGraph — security_posture.
- * Wallet lookup: not yet supported. Uses demo entity.
+ * Wallet lookup: LIVE (kenneives shipped Apr 9). Tries the wallet→entity
+ * lookup first; if the wallet is bound to an entity with a linked repo, we
+ * get a fully signed scan back. Otherwise falls back to the demo entity.
  */
 async function fetchAgentGraph(chainContext) {
+  var wallet = chainContext.wallet;
+  if (wallet && /^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+    try {
+      var lookupData = await fetchJSON(
+        "https://agentgraph.co/api/v1/public/scan/wallet/" + wallet + "?chain=ethereum"
+      );
+      if (lookupData.found && lookupData.scan && lookupData.scan.jws) {
+        var scan = lookupData.scan;
+        return {
+          issuer: "https://agentgraph.co",
+          type: "security_posture",
+          kid: scan.key_id || "agentgraph-security-v1",
+          alg: scan.algorithm || "EdDSA",
+          jwks: scan.jwks_url || "https://agentgraph.co/.well-known/jwks.json",
+          signed: null,
+          sig: scan.jws
+        };
+      }
+      // States 1 and 2 (no entity / no linked repo) fall through to demo
+    } catch (e) {
+      // Fall through to demo on error
+    }
+  }
   var data = await fetchJSON(
     "https://agentgraph.co/api/v1/entities/" + DEMO_IDS.agentgraph + "/attestation/security"
   );
@@ -280,13 +305,20 @@ async function fetchMaiat(chainContext) {
 
 /**
  * 8. SAR (SettlementWitness) — settlement_witness.
- * Wallet lookup: supported. Uses demo task for now.
+ * Wallet lookup: counterparty field accepted at envelope level. The signed
+ * payload commits to spec/output match — counterparty flows through but is
+ * NOT cryptographically bound. We pass the wallet anyway so the envelope
+ * surfaces the counterparty for consumers that want to correlate.
  */
 async function fetchSAR(chainContext) {
+  var body = Object.assign({}, DEMO_IDS.sar);
+  if (chainContext.wallet && typeof chainContext.wallet === "string") {
+    body.counterparty = chainContext.wallet;
+  }
   var data = await fetchJSON("https://defaultverifier.com/settlement-witness/attest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(DEMO_IDS.sar)
+    body: JSON.stringify(body)
   });
   if (!data.jws) throw new Error("No JWS in response");
   return {
