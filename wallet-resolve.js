@@ -361,19 +361,21 @@ async function fetchMaiat(chainContext) {
 
 /**
  * 8. SAR (SettlementWitness) — settlement_witness.
- * Wallet lookup: counterparty field accepted at envelope level. The signed
- * payload commits to spec/output match — counterparty flows through but is
- * NOT cryptographically bound (confirmed by decoding the /attest JWS).
- * nutstrut committed Apr 10 to adding counterparty to the signed payload in
- * a future release; until then the binding is transport-layer.
+ * Wallet lookup: counterparty field accepted at envelope level AND now
+ * inside the signed JWS payload as of kid sar-prod-ed25519-03 (shipped
+ * 2026-04-10). Post-upgrade receipts cryptographically bind the
+ * counterparty wallet — "this wallet is the counterparty on this signed
+ * receipt" is provable offline with nothing but the signed bytes.
+ * Legacy kid -02 / -01 receipts remain valid under their original
+ * transport-layer semantics.
  *
- * Apr 10: Wallet-indexed receipt history is now available via
+ * Wallet-indexed receipt history is also available via
  *   GET https://defaultverifier.com/settlement-witness/receipts?wallet={addr}
  * which returns the array of signed receipt records associated with a
- * counterparty. This reference script still uses /attest for the dimension
- * signature to keep the envelope shape uniform across providers. Consumers
- * that want per-wallet delivery history should call /receipts directly —
- * see the SkyeProfile orchestrator for an example composition.
+ * counterparty. Consumers that want per-wallet delivery history should
+ * call /receipts directly — see the SkyeProfile orchestrator for an
+ * example composition that reads both the fresh /attest signature and
+ * the historical /receipts lookup in one pass.
  */
 async function fetchSAR(chainContext) {
   var body = Object.assign({}, DEMO_IDS.sar);
@@ -389,7 +391,7 @@ async function fetchSAR(chainContext) {
   return {
     issuer: data.issuer || "https://defaultverifier.com",
     type: data.type || "settlement_witness",
-    kid: data.kid || "sar-prod-ed25519-02",
+    kid: data.kid || "sar-prod-ed25519-03",
     alg: data.alg || "EdDSA",
     jwks: data.jwks || "https://defaultverifier.com/.well-known/jwks.json",
     signed: null,
