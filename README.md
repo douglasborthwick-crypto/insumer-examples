@@ -180,11 +180,12 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 
 ## Multi-Attestation Verification
 
-Before an AI agent transacts, a relying party can verify eight independent dimensions in a single pass:
+Before an AI agent transacts, a relying party can verify nine independent dimensions in a single pass:
 
 | Dimension | Question | Issuer | Algorithm |
 |-----------|----------|--------|-----------|
 | **Wallet State** | "What does this wallet hold?" | [InsumerAPI](https://insumermodel.com) | ES256 |
+| **Compliance Risk** | "Is this counterparty sanctioned?" | [Revettr](https://revettr.com) (OFAC / EU / UN screening) | ES256 |
 | **Reasoning Integrity** | "Did this agent reason correctly?" | [ThoughtProof](https://thoughtproof.ai) | EdDSA |
 | **Behavioral Trust** | "Is this agent legitimate?" | [RNWY](https://rnwy.com) (150K+ agents, dual-score) | ES256 |
 | **Job Performance** | "Has this agent delivered before?" | [Maiat](https://app.maiat.io) | ES256 |
@@ -195,9 +196,9 @@ Before an AI agent transacts, a relying party can verify eight independent dimen
 
 Each attestation is independently signed and verifiable offline via JWKS. No shared keys, no shared infrastructure.
 
-### Add Your Attestation (Issuer #9+)
+### Add Your Attestation (Issuer #10+)
 
-The envelope is open. If you sign a distinct dimension of agent or wallet trust, you can join the verification pass. Eight issuers live today; the reference verifier loads any number.
+The envelope is open. If you sign a distinct dimension of agent or wallet trust, you can join the verification pass. Nine issuers live today; the reference verifier loads any number.
 
 **Checklist (Harold/AgentID pattern, verified in ~30 min):**
 
@@ -215,12 +216,12 @@ Post your JWKS URL + sample JWT on [issues/1](https://github.com/douglasborthwic
 
 | File | Description |
 |------|-------------|
-| [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 8 independent issuers (ES256 + EdDSA) |
+| [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 9 independent issuers (ES256 + EdDSA) |
 | [thoughtproof-verify-example.js](thoughtproof-verify-example.js) | ThoughtProof attestation walkthrough — JWKS fetch, EdDSA key import |
 | [x402-sar-integration.js](x402-sar-integration.js) | x402 SAR integration — attestation → payment → delivery proof → offline verification |
 | [x402-sar-integration-settlementwitness.js](x402-sar-integration-settlementwitness.js) | SettlementWitness SAR integration — live endpoint, Ed25519 verification ([nutstrut](https://github.com/nutstrut)) |
 
-Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Multi-Issuer Verification](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) | Discussion: [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
+Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Would You Trust Your Agent? KYA Is Real.](https://insumermodel.com/blog/multi-attestation-spec-five-shipped-wallet-binding.html) · [Multi-Issuer Verification (predecessor)](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) | Discussion: [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
 
 ---
 

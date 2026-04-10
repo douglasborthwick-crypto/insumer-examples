@@ -4,7 +4,7 @@
 **Status:** Draft
 **Date:** 2026-03-23
 **Discussion:** [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
-**Blog post:** [Multi-Issuer Verification](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html)
+**Blog posts:** [Multi-Issuer Verification](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) · [Would You Trust Your Agent? KYA Is Real.](https://insumermodel.com/blog/multi-attestation-spec-five-shipped-wallet-binding.html)
 
 ---
 
@@ -12,7 +12,7 @@
 
 The Multi-Attestation Payload Format defines a composable envelope for bundling independently signed attestations from multiple issuers into a single verifiable object. Each attestation is self-describing — it carries its own algorithm, key identifier, and JWKS discovery endpoint. No shared registry or coordination between issuers is required. A relying party selects attestations by `type`, fetches each issuer's public key via standard JWKS, and verifies signatures independently.
 
-This format emerged from convergence between eight independent issuers: InsumerAPI (wallet state), ThoughtProof (reasoning integrity), RNWY (behavioral trust), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), and SAR (settlement witness). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
+This format emerged from convergence between nine independent issuers: InsumerAPI (wallet state), Revettr (compliance risk), ThoughtProof (reasoning integrity), RNWY (behavioral trust), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), and SAR (settlement witness). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
 
 ---
 
@@ -73,6 +73,7 @@ This format emerged from convergence between eight independent issuers: InsumerA
 | Type | Issuer | Algorithm | Signature Format | Default TTL |
 |------|--------|-----------|------------------|-------------|
 | `wallet_state` | InsumerAPI | ES256 | base64 P1363 (or JWT when `format: "jwt"` requested) | 30 min |
+| `compliance_risk` | Revettr | ES256 | compact JWS (JWT) | 1 hour |
 | `reasoning_integrity` | ThoughtProof | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
 | `behavioral_trust` | RNWY | ES256 | base64 P1363 | 24 hours |
 | `job_performance` | Maiat | ES256 | compact JWS (JWT) | 30 min |
@@ -464,6 +465,52 @@ Docs: [github.com/nutstrut](https://github.com/nutstrut)
 | `receipt_id` | string | `sha256:...` derived from the signed core. |
 
 **Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
+
+
+### 3.9 Revettr — `compliance_risk`
+
+Counterparty risk scoring. Answers: is the wallet on a sanctions list, does it look like a clean counterparty, what is the regulatory exposure?
+
+| Property | Value |
+|----------|-------|
+| Issuer URI | `did:web:revettr.com` |
+| Algorithm | ES256 (P-256) |
+| Key ID | `revettr-attest-v1` |
+| JWKS | `https://revettr.com/.well-known/jwks.json` |
+| Default TTL | 1 hour |
+
+**Getting started:** No API key required. Keyless `POST /v1/attest` accepts a wallet address and returns a signed compliance risk attestation. Rate-limited to 10 requests per minute per IP.
+
+```bash
+curl -X POST https://revettr.com/v1/attest \
+  -H "Content-Type: application/json" \
+  -d '{"wallet_address":"0x..."}'
+```
+
+Discovery: `GET https://revettr.com/.well-known/risk-check.json`
+
+**Signed payload fields (JWT claims):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `iss` | string | `did:web:revettr.com` |
+| `sub` | string | Wallet address being scored. |
+| `iat` | number | Unix timestamp at issuance. |
+| `exp` | number | Unix timestamp at expiration (iat + 3600). |
+| `category` | string | Always `compliance_risk`. |
+| `attestation_type` | string | Always `compliance_risk`. |
+| `score` | number | Composite compliance score (0–100). |
+| `tier` | string | `low`, `medium`, `high`, or `critical`. |
+| `confidence` | number | Confidence in the score (0.0–1.0), based on signal availability. |
+| `flags` | array | Behavioral flags (e.g. `wallet_established`, `sanctions_clear`, `wallet_high_activity`). |
+| `signals` | object | Per-signal sub-scores: `domain`, `ip`, `wallet`, `sanctions`. |
+| `input_hash` | string | SHA-256 of the input parameters for replay detection. |
+
+**Refresh hint:** Event-driven, with `events: ["ofac_sdn_update", "eu_consolidated_update", "un_sc_update"]` and `max_age_seconds: 43200`.
+
+**Signature:** Compact JWS (JWT) with ES256 (P-256).
+
+**Coverage:** EVM only — Base, Ethereum, Optimism, Arbitrum (chain-agnostic at the `/v1/attest` endpoint, which scans across all 4 by default).
 
 
 ---
