@@ -615,7 +615,7 @@ async function main() {
       sarAttestation = {
         issuer: sar.issuer || "https://defaultverifier.com",
         type: sar.type || "settlement_witness",
-        kid: sar.kid || "sar-prod-ed25519-02",
+        kid: sar.kid || "sar-prod-ed25519-03",
         alg: sar.alg || "EdDSA",
         jwks: sar.jwks || "https://defaultverifier.com/.well-known/jwks.json",
         signed: null, // JWT format
