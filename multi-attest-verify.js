@@ -6,7 +6,7 @@
  * The verifier fetches each issuer's public key and checks the signature independently.
  *
  * Supported algorithms:
- *   - ES256 (ECDSA P-256) — InsumerAPI, RNWY, Maiat
+ *   - ES256 (ECDSA P-256) — InsumerAPI, RNWY, Maiat, Revettr
  *   - EdDSA (Ed25519) — ThoughtProof, APS, AgentID, AgentGraph, SAR
  *
  * No dependencies — uses Node.js built-in crypto and https modules.
@@ -328,8 +328,8 @@ async function main() {
   console.log("=".repeat(60));
   console.log("");
 
-  // Fetch live attestations from all six issuers
-  console.log("Fetching live attestations from all six issuers...\n");
+  // Fetch live attestations from all nine issuers
+  console.log("Fetching live attestations from all nine issuers...\n");
 
   // 1. InsumerAPI — requires API key
   const INSUMER_KEY = process.env.INSUMER_API_KEY;
@@ -629,6 +629,51 @@ async function main() {
     console.log("[-] SAR: " + e.message);
   }
 
+  // 9. Revettr — public, no API key, returns compact JWS
+  let revettrAttestation;
+  try {
+    const rev = await new Promise((resolve, reject) => {
+      const postData = JSON.stringify({
+        wallet_address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      });
+      const req = https.request(
+        "https://revettr.com/v1/attest",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+        (resp) => {
+          let data = "";
+          resp.on("data", (c) => (data += c));
+          resp.on("end", () => {
+            try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+          });
+        }
+      );
+      req.on("error", reject);
+      req.setTimeout(20000, () => { req.destroy(); reject(new Error("Timeout")); });
+      req.write(postData);
+      req.end();
+    });
+    if (rev.jws) {
+      revettrAttestation = {
+        issuer: rev.provider?.id || "did:web:revettr.com",
+        type: "compliance_risk",
+        kid: rev.kid || "revettr-attest-v1",
+        alg: rev.algorithm || "ES256",
+        jwks: rev.jwks_url || "https://revettr.com/.well-known/jwks.json",
+        signed: null, // JWT format — payload is in the JWS
+        sig: rev.jws,
+        expiry: rev.expires_at ? new Date(rev.expires_at * 1000).toISOString() : undefined,
+      };
+      console.log("[+] Revettr: fetched (tier: " + rev.attestation?.payload?.tier + ", score: " + rev.attestation?.payload?.score + ")");
+    } else {
+      console.log("[-] Revettr: unexpected response format");
+    }
+  } catch (e) {
+    console.log("[-] Revettr: " + e.message);
+  }
+
   // Build multi-attestation payload from available attestations
   const attestations = [];
   if (insumerAttestation) attestations.push(insumerAttestation);
@@ -639,6 +684,7 @@ async function main() {
   if (agentidAttestation) attestations.push(agentidAttestation);
   if (agentgraphAttestation) attestations.push(agentgraphAttestation);
   if (sarAttestation) attestations.push(sarAttestation);
+  if (revettrAttestation) attestations.push(revettrAttestation);
 
   if (attestations.length === 0) {
     console.log("\nNo live attestations available to verify.");

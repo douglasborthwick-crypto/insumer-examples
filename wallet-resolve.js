@@ -300,6 +300,34 @@ async function fetchSAR(chainContext) {
   };
 }
 
+/**
+ * 9. Revettr — compliance_risk.
+ * Wallet lookup: LIVE. Accepts wallet via `wallet_address` (we alias from `wallet`).
+ * Chain-agnostic: scans Base, Ethereum, Optimism, Arbitrum by default.
+ * EVM only — Solana wallets would not resolve.
+ */
+async function fetchRevettr(chainContext) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(chainContext.wallet)) {
+    throw new Error("Revettr requires an EVM wallet");
+  }
+  var data = await fetchJSON("https://revettr.com/v1/attest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wallet_address: chainContext.wallet })
+  });
+  if (!data.jws) throw new Error("No JWS in response");
+  return {
+    issuer: data.provider?.id || "did:web:revettr.com",
+    type: "compliance_risk",
+    kid: data.kid || "revettr-attest-v1",
+    alg: data.algorithm || "ES256",
+    jwks: data.jwks_url || "https://revettr.com/.well-known/jwks.json",
+    signed: null,
+    sig: data.jws,
+    expiry: data.expires_at ? new Date(data.expires_at * 1000).toISOString() : undefined
+  };
+}
+
 // ─── Orchestrator ────────────────────────────────────────────────
 
 /**
@@ -340,7 +368,8 @@ async function resolveWallet(opts) {
     { name: "AgentGraph", fn: fetchAgentGraph },
     { name: "APS", fn: fetchAPS },
     { name: "Maiat", fn: fetchMaiat },
-    { name: "SAR", fn: fetchSAR }
+    { name: "SAR", fn: fetchSAR },
+    { name: "Revettr", fn: fetchRevettr }
   ];
 
   console.log("[2] Resolving " + providers.length + " providers in parallel...");
@@ -372,6 +401,7 @@ async function resolveWallet(opts) {
   }
   if (/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
     walletResolved.push("Maiat");
+    walletResolved.push("Revettr");
   }
 
   return {
