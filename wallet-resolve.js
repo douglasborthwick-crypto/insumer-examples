@@ -127,9 +127,26 @@ async function fetchInsumerAPI(wallet, solanaWallet, xrplWallet, bitcoinWallet) 
 
 /**
  * 2. RNWY — behavioral_trust.
- * Wallet lookup: not yet supported. Uses demo ID.
+ * Wallet lookup: rnwy shipped /api/trust-check?wallet={addr} on Apr 10, 2026.
+ * Bound wallets return a full signed attestation tied to the mapped agent.
+ * Unknown wallets return {found:false} and we fall back to the demo agent.
+ * Signed block binds to agentId, not wallet — wallet resolution is at the
+ * transport layer. Treat as wallet-bound at the orchestrator level.
  */
 async function fetchRNWY(chainContext) {
+  const wallet = chainContext.wallet;
+  if (wallet && /^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+    try {
+      const lookup = await fetchJSON(
+        "https://rnwy.com/api/trust-check?wallet=" + wallet
+      );
+      if (lookup.attestation && lookup.found !== false) {
+        return lookup.attestation;
+      }
+    } catch (e) {
+      // Fall through to demo agent on error
+    }
+  }
   const data = await fetchJSON(
     "https://rnwy.com/api/trust-check?id=" + DEMO_IDS.rnwy.id + "&chain=" + DEMO_IDS.rnwy.chain
   );
