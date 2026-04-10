@@ -129,11 +129,11 @@ async function fetchInsumerAPI(wallet, solanaWallet, xrplWallet, bitcoinWallet) 
  * 2. RNWY — behavioral_trust.
  * Wallet lookup shipped Apr 10, 2026 at /api/trust-check?wallet={addr}.
  * rnwy-trust-v2 shipped the same day with `owner` and `expiry` inside the
- * signed block, but the v2 public key has not yet been published to the
- * JWKS — so v2 signatures cannot be verified end-to-end against
- * https://rnwy.com/.well-known/jwks.json. Pinning to v1 (attestationV1)
- * until the v2 kid lands in JWKS, then flipping back to prefer v2. Unknown
- * wallets return {found:false} and we fall back to the demo agent.
+ * signed block, and the v2 public key is now published in the JWKS alongside
+ * v1. v2 signatures verify end-to-end, so we prefer v2 (signature-layer
+ * wallet binding via `owner`) and fall back to v1 only if v2 is absent from
+ * the response. Unknown wallets return {found:false} and we fall back to
+ * the demo agent.
  */
 async function fetchRNWY(chainContext) {
   const wallet = chainContext.wallet;
@@ -142,8 +142,8 @@ async function fetchRNWY(chainContext) {
       const lookup = await fetchJSON(
         "https://rnwy.com/api/trust-check?wallet=" + wallet
       );
-      // Pin to v1 (attestationV1) until v2 kid is in JWKS; prefer v2 once verifiable.
-      const att = lookup.attestationV1 || lookup.attestation;
+      // Prefer v2 (signature-bound wallet via `owner`); fall back to v1 during migration.
+      const att = lookup.attestation || lookup.attestationV1;
       if (att && lookup.found !== false) {
         return att;
       }
