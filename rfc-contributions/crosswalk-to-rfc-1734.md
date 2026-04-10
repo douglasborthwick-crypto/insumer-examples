@@ -128,3 +128,18 @@ This is what `wallet_state` and `compliance_risk` already do in the sample envel
 This crosswalk is versioned alongside `MULTI-ATTESTATION-SPEC.md`. When either spec changes — new issuer added, new category added, signed fields rotated — the corresponding row in this document updates in the same PR. The canonical location is this file in the `insumer-examples` repository; mirrors in the A2A RFC source tree or a future `trust-evidence-format` org should be kept in sync by cross-PR.
 
 **Last reconciled:** 2026-04-10, against MULTI-ATTESTATION-SPEC.md §3.1–3.10 and A2A discussion #1734 comments through comment `16523189`.
+
+---
+
+## Reproducing a row
+
+Every row in the crosswalk is backed by a live signed envelope from the issuer in column 2. To validate a row yourself, pull the envelope and decode it. Most issuers are keyless; the `wallet_state` row requires a free InsumerAPI key:
+
+```bash
+# Free InsumerAPI key — returned immediately, no credit card
+curl -X POST https://api.insumermodel.com/v1/keys/create \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","appName":"crosswalk-validation","tier":"free"}'
+```
+
+The other issuers are keyless — see the "Getting started" block inside each `MULTI-ATTESTATION-SPEC.md` section (3.2 ThoughtProof, 3.3 RNWY, 3.4 Maiat, 3.5 APS, 3.6 AgentID, 3.7 AgentGraph, 3.8 SAR, 3.9 Revettr, 3.10 RNWY wallet intelligence) for the exact endpoint to hit. Every envelope can be verified offline against the issuer's JWKS — see MULTI-ATTESTATION-SPEC.md §4 (Verification Algorithm) and [`multi-attest-verify.js`](../multi-attest-verify.js) in this repository for the zero-dependency reference verifier.
