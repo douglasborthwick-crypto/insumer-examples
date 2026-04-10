@@ -264,10 +264,39 @@ async function fetchAgentGraph(chainContext) {
 
 /**
  * 6. APS (Agent Passport System) — passport_grade.
- * Wallet lookup: committed, not yet live. Uses demo agent.
+ * Wallet lookup: LIVE — aeoess shipped silently (no public follow-up,
+ * confirmed via probe). /trust/{wallet} accepts a wallet path; if APS
+ * has the wallet registered, the warm step returns found:true and the
+ * attestation step returns a signed JWS. Otherwise falls back to demo.
  */
 async function fetchAPS(chainContext) {
-  // Warm the cache (attestation endpoint requires a prior profile fetch)
+  var wallet = chainContext.wallet;
+  if (wallet) {
+    try {
+      var warmData = await fetchJSON(
+        "https://gateway.aeoess.com/api/v1/public/trust/" + encodeURIComponent(wallet)
+      );
+      if (warmData && warmData.found) {
+        var attData = await fetchJSON(
+          "https://gateway.aeoess.com/api/v1/public/trust/" + encodeURIComponent(wallet) + "/attestation"
+        );
+        if (attData && attData.jws) {
+          return {
+            issuer: attData.issuer || "https://gateway.aeoess.com",
+            type: attData.type || "passport_grade",
+            kid: attData.kid || "gateway-v1",
+            alg: attData.alg || "EdDSA",
+            jwks: attData.jwks || "https://gateway.aeoess.com/.well-known/jwks.json",
+            signed: attData.signed,
+            sig: attData.jws
+          };
+        }
+      }
+    } catch (e) {
+      // Fall through to demo
+    }
+  }
+  // Fallback: demo agent
   await fetchJSON("https://gateway.aeoess.com/api/v1/public/trust/" + DEMO_IDS.aps);
   var data = await fetchJSON(
     "https://gateway.aeoess.com/api/v1/public/trust/" + DEMO_IDS.aps + "/attestation"
