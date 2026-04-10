@@ -81,7 +81,7 @@ This format emerged from convergence across nine independent issuers contributin
 | `passport_grade` | APS | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
 | `trust_verification` | AgentID | EdDSA (Ed25519) | compact JWS (JWT) | 1 hour |
 | `security_posture` | AgentGraph | EdDSA (Ed25519) | compact JWS (JWT) | 24 hours |
-| `settlement_witness` | SAR | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
+| `settlement_witness` | SAR | EdDSA (Ed25519) | compact JWS (JWT, kid `sar-prod-ed25519-03` current, `-02`/`-01` legacy) | per-issuer |
 
 ---
 
@@ -99,13 +99,15 @@ An analytical split across the envelope worth naming because it clarifies how co
 | Job performance | Maiat | `sub`, `agent` |
 | Compliance risk | Revettr | `sub` |
 | Identity verification | AgentID v1.1.0 | `bound_addresses`, `solana_address`, `wallet_address` |
+| Settlement witness (new receipts) | SAR `sar-prod-ed25519-03` | `counterparty` |
 
 **Wallet-discoverable content dimensions.** The signed JWS payload commits to what is being attested about (a repo, a task outcome, a delivery record). The wallet is a lookup key that discovers the relevant signed subject. A verifier holding only the signed bytes can prove "this repo scored 100" or "this task outcome matched spec" — but not "this wallet owns this repo." This is not a limitation; it is the correct architectural shape for dimensions that attest to things rather than identities.
 
 | Dimension | Provider | Signed subject |
 |---|---|---|
 | Security posture | AgentGraph | `github:owner/repo` |
-| Settlement witness | SAR | Task outcome + receipt ID |
+
+As of the 2026-04-10 SAR kid rotation to `sar-prod-ed25519-03`, the `counterparty` field is now inside signed bytes for new receipts, moving `settlement_witness` into the wallet-bound category for post-upgrade receipts. Legacy receipts signed under kid `-02` or `-01` remain wallet-discoverable via the `/settlement-witness/receipts?wallet={address}` transport lookup.
 
 **Not wallet-binding by design.** ThoughtProof commits to a `claim_hash` (SHA-256 of a natural-language reasoning claim). The wallet does not appear in the signed bytes. That is consistent with its attestation surface — it attests to the soundness of a reasoning chain, which is a property of the action, not the actor.
 
@@ -503,7 +505,7 @@ Post-execution delivery attestation. Answers: was the task actually delivered as
 |----------|-------|
 | Issuer URI | `https://defaultverifier.com` |
 | Algorithm | EdDSA (Ed25519) |
-| Key ID | `sar-prod-ed25519-02` |
+| Key ID | `sar-prod-ed25519-03` (current, shipped 2026-04-10) · `-02` / `-01` (legacy, compat) |
 | JWKS | `https://defaultverifier.com/.well-known/jwks.json` |
 
 **Getting started:** No API key required. POST a task spec and output to get a signed verdict.
@@ -522,7 +524,7 @@ Docs: [github.com/nutstrut](https://github.com/nutstrut)
 
 **Category:** wallet-discoverable content dimension — the `/attest` JWS signs the task outcome (not the counterparty wallet). The `/receipts?wallet=` endpoint provides wallet-indexed discovery over the receipt corpus. Counterparty as a first-class signed field in the core `/attest` payload is committed by nutstrut on-thread and in flight as of 2026-04-10; when it ships, SAR moves from wallet-discoverable to wallet-bound for post-upgrade receipts.
 
-**Signed payload fields (JWT claims):**
+**Signed payload fields (JWT claims, kid `sar-prod-ed25519-03`):**
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -533,8 +535,11 @@ Docs: [github.com/nutstrut](https://github.com/nutstrut)
 | `ts` | string | ISO 8601 timestamp. |
 | `verifier_kid` | string | Key ID used for signing. |
 | `receipt_id` | string | `sha256:...` derived from the signed core. |
+| `counterparty` | string | Wallet address (new in kid `-03`, shipped 2026-04-10). When present, the wallet is inside signature scope — this makes `settlement_witness` a wallet-bound dimension for post-upgrade receipts. |
 
 **Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
+
+Legacy receipts signed under kids `-01` or `-02` do not contain `counterparty` in the signed bytes and remain wallet-discoverable only via the `/receipts?wallet=` transport lookup.
 
 
 ### 3.9 Revettr — `compliance_risk`
