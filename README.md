@@ -180,7 +180,7 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 
 ## Multi-Attestation Verification
 
-Before an AI agent transacts, a relying party can verify nine independent dimensions in a single pass:
+Before an AI agent transacts, a relying party can verify ten signed dimensions across nine independent issuers in a single pass:
 
 | Dimension | Question | Issuer | Algorithm |
 |-----------|----------|--------|-----------|
@@ -188,6 +188,7 @@ Before an AI agent transacts, a relying party can verify nine independent dimens
 | **Compliance Risk** | "Is this counterparty sanctioned?" | [Revettr](https://revettr.com) (OFAC / EU / UN screening) | ES256 |
 | **Reasoning Integrity** | "Did this agent reason correctly?" | [ThoughtProof](https://thoughtproof.ai) | EdDSA |
 | **Behavioral Trust** | "Is this agent legitimate?" | [RNWY](https://rnwy.com) (150K+ agents, dual-score) | ES256 |
+| **Wallet Intelligence** | "What does RNWY know about the operator wallet itself?" | [RNWY](https://rnwy.com) (`rnwy-wallet-v1`, signalDepth + riskIntensity quadrant) | ES256 |
 | **Job Performance** | "Has this agent delivered before?" | [Maiat](https://app.maiat.io) | ES256 |
 | **Passport Grade** | "How deeply is this agent's identity verified?" | [APS](https://github.com/aeoess/agent-passport-system) | EdDSA |
 | **Trust Verification** | "How reliable is this agent's behavior?" | [AgentID](https://getagentid.dev) | EdDSA |
@@ -216,7 +217,7 @@ Post your JWKS URL + sample JWT on [issues/1](https://github.com/douglasborthwic
 
 | File | Description |
 |------|-------------|
-| [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 9 independent issuers (ES256 + EdDSA) |
+| [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 10 signed dimensions across 9 independent issuers (ES256 + EdDSA) |
 | [thoughtproof-verify-example.js](thoughtproof-verify-example.js) | ThoughtProof attestation walkthrough — JWKS fetch, EdDSA key import |
 | [x402-sar-integration.js](x402-sar-integration.js) | x402 SAR integration — attestation → payment → delivery proof → offline verification |
 | [x402-sar-integration-settlementwitness.js](x402-sar-integration-settlementwitness.js) | SettlementWitness SAR integration — live endpoint, Ed25519 verification ([nutstrut](https://github.com/nutstrut)) |

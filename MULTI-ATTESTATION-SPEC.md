@@ -1,8 +1,8 @@
 # Multi-Attestation Payload Format
 
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Draft
-**Date:** 2026-03-23
+**Date:** 2026-04-10
 **Discussion:** [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
 **Blog posts:** [Multi-Issuer Verification](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) · [Would You Trust Your Agent? KYA Is Real.](https://insumermodel.com/blog/multi-attestation-spec-five-shipped-wallet-binding.html)
 
@@ -12,7 +12,7 @@
 
 The Multi-Attestation Payload Format defines a composable envelope for bundling independently signed attestations from multiple issuers into a single verifiable object. Each attestation is self-describing — it carries its own algorithm, key identifier, and JWKS discovery endpoint. No shared registry or coordination between issuers is required. A relying party selects attestations by `type`, fetches each issuer's public key via standard JWKS, and verifies signatures independently.
 
-This format emerged from convergence between nine independent issuers: InsumerAPI (wallet state), Revettr (compliance risk), ThoughtProof (reasoning integrity), RNWY (behavioral trust), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), and SAR (settlement witness). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
+This format emerged from convergence across nine independent issuers contributing ten signed dimensions: InsumerAPI (wallet state — the foundation layer, 33 chains), Revettr (compliance risk), ThoughtProof (reasoning integrity), RNWY (two dimensions — agent-level behavioral trust AND operator-level wallet intelligence), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), and SAR (settlement witness). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
 
 ---
 
@@ -75,7 +75,8 @@ This format emerged from convergence between nine independent issuers: InsumerAP
 | `wallet_state` | InsumerAPI | ES256 | base64 P1363 (or JWT when `format: "jwt"` requested) | 30 min |
 | `compliance_risk` | Revettr | ES256 | compact JWS (JWT) | 1 hour |
 | `reasoning_integrity` | ThoughtProof | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
-| `behavioral_trust` | RNWY | ES256 | base64 P1363 | 24 hours |
+| `behavioral_trust` | RNWY | ES256 | base64 P1363 (kid `rnwy-trust-v2`, legacy `rnwy-trust-v1`) | 24 hours |
+| `wallet_intelligence` | RNWY | ES256 | compact JWS (JWT, kid `rnwy-wallet-v1`) | 24 hours |
 | `job_performance` | Maiat | ES256 | compact JWS (JWT) | 30 min |
 | `passport_grade` | APS | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
 | `trust_verification` | AgentID | EdDSA (Ed25519) | compact JWS (JWT) | 1 hour |
@@ -84,11 +85,44 @@ This format emerged from convergence between nine independent issuers: InsumerAP
 
 ---
 
+## 2.5 Two Categories of Wallet Binding
+
+An analytical split across the envelope worth naming because it clarifies how composition policies should weight signals. Both categories are cryptographically verifiable and both fit the envelope. They answer different questions, and neither is weaker than the other.
+
+**Wallet-bound identity dimensions.** The signed JWS payload contains the wallet itself. A verifier holding only the signed bytes can prove "this specific wallet → this signal." The binding is cryptographic end-to-end.
+
+| Dimension | Provider | Signed field |
+|---|---|---|
+| Wallet state (foundation, 33 chains) | InsumerAPI | `wallet` (EVM via `/v1/trust`) / JWT `sub` (non-EVM via `/v1/attest`) |
+| Behavioral trust (agent) | RNWY v2 | `owner` |
+| Wallet intelligence (operator) | RNWY `rnwy-wallet-v1` | `sub`, `wallet` |
+| Job performance | Maiat | `sub`, `agent` |
+| Compliance risk | Revettr | `sub` |
+| Identity verification | AgentID v1.1.0 | `bound_addresses`, `solana_address`, `wallet_address` |
+
+**Wallet-discoverable content dimensions.** The signed JWS payload commits to what is being attested about (a repo, a task outcome, a delivery record). The wallet is a lookup key that discovers the relevant signed subject. A verifier holding only the signed bytes can prove "this repo scored 100" or "this task outcome matched spec" — but not "this wallet owns this repo." This is not a limitation; it is the correct architectural shape for dimensions that attest to things rather than identities.
+
+| Dimension | Provider | Signed subject |
+|---|---|---|
+| Security posture | AgentGraph | `github:owner/repo` |
+| Settlement witness | SAR | Task outcome + receipt ID |
+
+**Not wallet-binding by design.** ThoughtProof commits to a `claim_hash` (SHA-256 of a natural-language reasoning claim). The wallet does not appear in the signed bytes. That is consistent with its attestation surface — it attests to the soundness of a reasoning chain, which is a property of the action, not the actor.
+
+---
+
 ## 3. Per-Issuer Schemas
 
-### 3.1 InsumerAPI — `wallet_state`
+### 3.1 InsumerAPI — `wallet_state` (foundation layer)
 
-Privacy-preserving on-chain verification. Returns signed booleans across 33 chains (30 EVM + Solana + XRPL + Bitcoin). No balances exposed.
+**InsumerAPI is the foundation layer.** It reads wallet state across 33 chains (30 EVM + Solana + XRPL + Bitcoin) and establishes the chain context every other dimension composes on top of. The other nine dimensions answer specialized questions; the foundation answers "what does this wallet actually hold and do on-chain."
+
+Privacy-preserving on-chain verification. Returns signed booleans. No balances exposed.
+
+**Endpoint routing by wallet format:**
+
+- **EVM wallets** → `POST /v1/trust` — curated multi-chain trust profile. Returns an ECDSA-signed fact profile across stablecoins, governance tokens, NFTs, and staking positions. An EVM wallet is the mandatory anchor for this endpoint.
+- **Non-EVM wallets (Solana, XRPL, Bitcoin)** → `POST /v1/attest` with `format: "jwt"` and chain-appropriate conditions. The wallet lands in the signed JWT `sub` claim, making the binding cryptographic even for non-EVM formats.
 
 | Property | Value |
 |----------|-------|
@@ -184,7 +218,7 @@ On-chain behavioral trust scoring with sybil detection across ERC-8004, Olas, Vi
 |----------|-------|
 | Issuer URI | `https://rnwy.com` |
 | Algorithm | ES256 (ECDSA P-256) |
-| Key ID | `rnwy-trust-v1` |
+| Key ID | `rnwy-trust-v2` (current, shipped 2026-04-10) · `rnwy-trust-v1` (legacy, compat window) |
 | JWKS | `https://rnwy.com/.well-known/jwks.json` |
 | On-chain oracle | [`0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4`](https://basescan.org/address/0xD5fdccD492bB5568bC7aeB1f1E888e0BbA6276f4) (Base, 150K+ agents) |
 | SDK | `rnwy-sdk` on npm |
@@ -215,6 +249,18 @@ Docs: [rnwy.com/api](https://rnwy.com/api)
 | `attestedAt` | string | ISO 8601 attestation timestamp. |
 
 **Signature:** Base64-encoded P1363 (`r || s`, 64 bytes) over `JSON.stringify(signed)`.
+
+#### 3.3.0 `rnwy-trust-v2` — upgraded signed payload (current)
+
+As of 2026-04-10, RNWY ships `rnwy-trust-v2` with an expanded signed payload putting the wallet directly in signature scope — cryptographic wallet→score binding end-to-end.
+
+**Signed block (`rnwy-trust-v2`):** `agentId`, `chain`, `registry`, `owner`, `score`, `tier`, `badges`, `sybilSeverity`, `sybilSignals`, `issuedAt`, `verifiedAt`, `expiry`.
+
+- `owner` is the wallet address — this is the wallet-bound field that moves RNWY from wallet-discoverable to wallet-bound in the taxonomy above.
+- Chain auto-resolves from the highest-scoring agent owned by the wallet — no `?chain=` parameter required for a wallet lookup.
+- Unknown wallets return a **signed `found: false` envelope**: `{ found: false, wallet, issuedAt }` with a full ES256 signature. Cryptographic proof of absence rather than unsigned JSON. Consumers that want to deny-list on "no positive signal" can rely on a verifiable negative claim.
+
+**Wallet-based lookup:** call the trust-check endpoint with a wallet address — RNWY resolves to the highest-scoring owned agent and returns the signed `rnwy-trust-v2` envelope. No chain parameter required.
 
 #### 3.3.1 Evidence Extension (proposed)
 
@@ -372,10 +418,11 @@ curl "https://getagentid.dev/api/v1/agents/trust-header?agent_id=agent_xxx"
 
 Docs: [getagentid.dev/docs](https://getagentid.dev/docs)
 
-**Signed payload fields (JWT claims):**
+**Signed payload fields (JWT claims, schema `version: "1.1.0"` as of 2026-04-10):**
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `version` | string | Schema version — currently `"1.1.0"`. |
 | `agent_id` | string | Agent identifier. |
 | `trust_level` | number | Numeric trust level. |
 | `trust_level_label` | string | Human-readable trust level (e.g., "L2 — Verified"). |
@@ -386,7 +433,18 @@ Docs: [getagentid.dev/docs](https://getagentid.dev/docs)
 | `resolved_signals` | number | Count of resolved negative signals. |
 | `attestation_count` | number | Total attestations issued for this agent. |
 | `did` | string | Decentralized identifier (`did:web:getagentid.dev:agent:{id}`). |
+| `solana_address` | string | Solana address bound to this agent (when present). |
+| `wallet_address` | string | EVM wallet address bound to this agent (when present). |
+| `wallet_chain` | string | Chain identifier for `wallet_address` (when present). |
+| `bound_addresses` | string[] | All wallet addresses bound to this agent. |
+| `subject_binding` | string | Binding type indicator — `"wallet_bound"` when the signed payload includes a wallet. |
 | `evaluatedAt` | string | ISO 8601 evaluation timestamp. |
+
+**Signing key unchanged:** kid remains `agentid-2026-03`. The schema was extended in place via the `version` field; no key rotation.
+
+**Wallet lookup:** `GET /api/v1/agents/trust-header?wallet={address}` — OR-filter match on `solana_address` or `wallet_address`.
+
+**Multi-category endpoint:** `GET /api/v1/agents/attestation?agent_id={id}&category={identity|behavioral|continuous-monitoring|key-lifecycle}` — returns a per-category JWS-signed envelope. Wallet binding lives in the `identity` category specifically.
 
 **Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
 
@@ -406,10 +464,16 @@ Source code vulnerability scanning for AI agents. Answers: has this agent's code
 **Getting started:** No API key required. Any scanned entity returns a signed attestation.
 
 ```bash
+# Entity lookup
 curl https://agentgraph.co/api/v1/entities/{entity_id}/attestation/security
+
+# Wallet-scoped scan lookup (resolves wallet → scanned entity → signed attestation)
+curl "https://agentgraph.co/api/v1/public/scan/wallet/{wallet}?chain=ethereum"
 ```
 
 Docs: [github.com/agentgraph-co/agentgraph](https://github.com/agentgraph-co/agentgraph)
+
+**Category:** wallet-discoverable content dimension — the signed `subject.id` is `github:owner/repo` (the thing being scanned), not the wallet. The wallet is a discovery key. Consistent with the security posture semantic: the scan evaluates code, not identity.
 
 **Signed payload fields (JWT claims):**
 
@@ -445,12 +509,18 @@ Post-execution delivery attestation. Answers: was the task actually delivered as
 **Getting started:** No API key required. POST a task spec and output to get a signed verdict.
 
 ```bash
+# Attest a task outcome
 curl -X POST https://defaultverifier.com/settlement-witness/attest \
   -H "Content-Type: application/json" \
   -d '{"task_id":"example","spec":{"expected":"hello"},"output":{"expected":"hello"}}'
+
+# Wallet-indexed receipt history (signed receipts where the wallet is the counterparty)
+curl "https://defaultverifier.com/settlement-witness/receipts?wallet={address}"
 ```
 
 Docs: [github.com/nutstrut](https://github.com/nutstrut)
+
+**Category:** wallet-discoverable content dimension — the `/attest` JWS signs the task outcome (not the counterparty wallet). The `/receipts?wallet=` endpoint provides wallet-indexed discovery over the receipt corpus. Counterparty as a first-class signed field in the core `/attest` payload is committed by nutstrut on-thread and in flight as of 2026-04-10; when it ships, SAR moves from wallet-discoverable to wallet-bound for post-upgrade receipts.
 
 **Signed payload fields (JWT claims):**
 
@@ -511,6 +581,49 @@ Discovery: `GET https://revettr.com/.well-known/risk-check.json`
 **Signature:** Compact JWS (JWT) with ES256 (P-256).
 
 **Coverage:** EVM only — Base, Ethereum, Optimism, Arbitrum (chain-agnostic at the `/v1/attest` endpoint, which scans across all 4 by default).
+
+
+### 3.10 RNWY Wallet Intelligence — `wallet_intelligence`
+
+Operator-level wallet intelligence. Answers "what does RNWY know about the operator wallet itself as an actor" — tenure, commerce history, agent ownership, review behavior, and sybil detection reactivity. Distinct from `behavioral_trust` (agent-level), which answers "is this agent trustworthy." The two dimensions compose — a high-behavioral-trust agent owned by a low-signal-depth operator is a meaningfully different risk than the same agent owned by a deeply established operator.
+
+| Property | Value |
+|----------|-------|
+| Issuer URI | `https://rnwy.com` |
+| Algorithm | ES256 (ECDSA P-256) |
+| Key ID | `rnwy-wallet-v1` |
+| JWKS | `https://rnwy.com/.well-known/jwks.json` |
+| Default TTL | 24 hours |
+
+**Getting started:** No API key required.
+
+```bash
+curl "https://rnwy.com/api/wallet-score?address={wallet}"
+```
+
+Docs: [rnwy.com/api](https://rnwy.com/api)
+
+**Signed payload fields (JWT claims):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `iss` | string | Issuer identifier. |
+| `sub` | string | Wallet address (JWT-style subject). |
+| `wallet` | string | Wallet address (explicit alias). |
+| `signalDepth` | number | 0–95. Observational tenure, commerce history, agent ownership, review behavior. |
+| `riskIntensity` | number | 0–100. Sybil detection reactivity. Zero means clean. Independent from `signalDepth`. |
+| `quadrant` | string | e.g. `high_depth_low_risk`, `high_depth_high_risk`, etc. |
+| `activityZone` | string | Named zone — `Established`, `Emerging`, etc. |
+| `riskZone` | string | Named zone — `Clean`, `Elevated`, etc. |
+| `issuedAt` | string | ISO 8601 — when the score was computed. |
+| `verifiedAt` | string | ISO 8601 — request time. |
+| `expiry` | string | ISO 8601 — end of validity window. |
+
+**Unscored wallets** return a signed `{ found: false, wallet, issuedAt }` envelope — cryptographic proof of absence rather than unsigned JSON. Downstream consumers that want to deny-list on "no positive signal" can rely on a verifiable negative claim.
+
+**Chain coverage:** EVM only as of 2026-04-10.
+
+**Signature:** Compact JWS (JWT) with ES256.
 
 
 ---
@@ -638,5 +751,5 @@ The verifier:
 
 | Algorithm | Curve | Issuers | Signature Encoding |
 |-----------|-------|---------|-------------------|
-| ES256 | P-256 | InsumerAPI, RNWY, Maiat | P1363 base64 or JWT |
+| ES256 | P-256 | InsumerAPI, RNWY (behavioral_trust + wallet_intelligence), Maiat, Revettr | P1363 base64 or JWT |
 | EdDSA | Ed25519 | ThoughtProof, APS, AgentID, AgentGraph, SAR | JWT |
