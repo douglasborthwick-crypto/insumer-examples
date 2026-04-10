@@ -170,34 +170,40 @@ async function fetchThoughtProof(chainContext) {
 
 /**
  * 4. AgentID — trust_verification.
- * Wallet lookup: LIVE (Solana). Resolves wallet → agent_id → trust-header.
+ * Wallet lookup: LIVE — Harold shipped `?wallet=` directly on the
+ * trust-header endpoint Apr 8 (no public follow-up — confirmed via probe).
+ * Collapses the previous two-step verify→trust-header into one call.
+ * Accepts both Solana and EVM wallet formats syntactically; falls back to
+ * demo agent if no entity is bound.
  */
 async function fetchAgentID(chainContext) {
-  var agentId;
+  var wallet = chainContext.wallet;
+  var data;
 
-  // Try wallet resolution if Solana wallet is available
-  var solWallet = chainContext.solanaWallet || (
-    /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(chainContext.wallet) ? chainContext.wallet : null
-  );
-
-  if (solWallet) {
-    var verifyData = await fetchJSON("https://www.getagentid.dev/api/v1/agents/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet: solWallet })
-    });
-    if (verifyData.verified && verifyData.agent_id) {
-      agentId = verifyData.agent_id;
+  if (wallet) {
+    try {
+      data = await fetchJSON(
+        "https://www.getagentid.dev/api/v1/agents/trust-header?wallet=" + encodeURIComponent(wallet)
+      );
+      if (data && data.header) {
+        return {
+          issuer: "https://getagentid.dev",
+          type: "trust_verification",
+          kid: "agentid-2026-03",
+          alg: "EdDSA",
+          jwks: "https://getagentid.dev/.well-known/jwks.json",
+          signed: null,
+          sig: data.header
+        };
+      }
+    } catch (e) {
+      // Fall through to demo agent
     }
   }
 
-  // Fall back to demo ID if wallet resolution didn't find an agent
-  if (!agentId) {
-    agentId = "agent_d1b7ef01f9af191f";
-  }
-
-  var data = await fetchJSON(
-    "https://www.getagentid.dev/api/v1/agents/trust-header?agent_id=" + agentId
+  // Fallback: demo agent attestation
+  data = await fetchJSON(
+    "https://www.getagentid.dev/api/v1/agents/trust-header?agent_id=agent_d1b7ef01f9af191f"
   );
   if (!data.header) throw new Error("No header in response");
   return {
