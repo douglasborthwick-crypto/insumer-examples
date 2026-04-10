@@ -284,53 +284,146 @@ async function fetchAgentGraph(chainContext) {
 }
 
 /**
- * 6. APS (Agent Passport System) — passport_grade.
- * Wallet lookup: LIVE — aeoess shipped silently (no public follow-up,
- * confirmed via probe). /trust/{wallet} accepts a wallet path; if APS
- * has the wallet registered, the warm step returns found:true and the
- * attestation step returns a signed JWS. Otherwise falls back to demo.
+ * APS canonical serialization — mirrors the reference `canonicalize()` in
+ * aeoess/agent-passport-system/src/core/canonical.ts. Sorts keys
+ * alphabetically, strips null/undefined, compact JSON. Used to reconstruct
+ * the binding payload for strict per-wallet verification.
+ */
+function apsCanonicalize(obj) {
+  if (obj === null || obj === undefined) return "null";
+  if (typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(apsCanonicalize).join(",") + "]";
+  var keys = Object.keys(obj).filter(function(k) {
+    return obj[k] !== null && obj[k] !== undefined;
+  }).sort();
+  return "{" + keys.map(function(k) {
+    return JSON.stringify(k) + ":" + apsCanonicalize(obj[k]);
+  }).join(",") + "}";
+}
+
+/**
+ * Strict per-wallet binding_sig verification for the APS wallet_ref[] path.
+ *
+ * For the canonical `aeoess-bound-demo` fixture: fetches the published
+ * fixture from the APS repo, reconstructs the canonical payload per
+ * bind.ts > bindingPayload() (`{passport_id, chain, address, bound_at}` →
+ * canonicalize), and verifies each wallet_ref[] entry's binding_sig against
+ * the fixture pubkey using raw Ed25519.
+ *
+ * For other passport IDs: returns { verified: "not_applicable" } — the
+ * binding_sig for a non-fixture passport is signed by the agent's private
+ * key and the pubkey lives in the passport object itself. Production-
+ * grade verification would fetch the passport object and extract its
+ * `publicKey` field; that path is out of scope for this reference
+ * verifier. Graceful degradation.
+ */
+async function verifyAPSWalletRefBindings(envelope) {
+  if (!envelope || !Array.isArray(envelope.wallet_ref) || envelope.wallet_ref.length === 0) {
+    return { verified: "no_wallet_ref", chains: [] };
+  }
+  var passportId = envelope.agent_id;
+  if (passportId !== "aeoess-bound-demo") {
+    return { verified: "not_applicable", reason: "non-fixture passport; pubkey must be fetched from passport object", chains: [] };
+  }
+  var fixture;
+  try {
+    fixture = await fetchJSON("https://raw.githubusercontent.com/aeoess/agent-passport-system/main/tests/fixtures/wallet-binding/aeoess-bound-demo.json");
+  } catch (e) {
+    return { verified: "fixture_fetch_failed", reason: e.message, chains: [] };
+  }
+  var pubKeyHex = fixture.fixture_public_key;
+  if (!pubKeyHex) return { verified: "fixture_missing_pubkey", chains: [] };
+  // Ed25519 raw 32-byte pubkey → DER SPKI for Node's crypto.createPublicKey
+  var spkiPrefix = Buffer.from("302a300506032b6570032100", "hex");
+  var spki = Buffer.concat([spkiPrefix, Buffer.from(pubKeyHex, "hex")]);
+  var crypto = require("crypto");
+  var pubKey = crypto.createPublicKey({ key: spki, format: "der", type: "spki" });
+  var chains = [];
+  var allPassed = true;
+  for (var i = 0; i < envelope.wallet_ref.length; i++) {
+    var ref = envelope.wallet_ref[i];
+    var payload = apsCanonicalize({
+      passport_id: passportId,
+      chain: ref.chain,
+      address: ref.address,
+      bound_at: ref.bound_at,
+    });
+    var ok;
+    try {
+      ok = crypto.verify(null, Buffer.from(payload, "utf8"), pubKey, Buffer.from(ref.binding_sig, "hex"));
+    } catch (e) {
+      ok = false;
+    }
+    chains.push({ chain: ref.chain, address: ref.address, bound_at: ref.bound_at, verified: ok });
+    if (!ok) allPassed = false;
+  }
+  return { verified: allPassed ? "pass" : "fail", chains: chains };
+}
+
+/**
+ * 6. APS (Agent Passport System) — passport_grade + strict wallet_ref[] binding.
+ *
+ * Wallet lookup: LIVE via the `/api/v1/public/trust/by-wallet/{address}`
+ * reverse index (shipped 2026-04-10 by aeoess, fixed 2026-04-10 for the
+ * sequential-bind sub-second precision drift). Returns the envelope-level
+ * passport_grade JWS AND the wallet_ref[] array with per-wallet binding_sig
+ * values, both in one response.
+ *
+ * Two layers of verification:
+ *   (1) envelope-level Ed25519 JWS against gateway-v1 JWKS — handled by the
+ *       main multi-attest-verify.js verifier downstream
+ *   (2) strict per-wallet binding_sig verification via verifyAPSWalletRefBindings() —
+ *       runs inline here for the canonical fixture passport; graceful
+ *       degradation for other passport IDs
+ *
+ * The returned attestation object carries the strict binding result on
+ * `_strictWalletBinding` (leading underscore = metadata, not part of the
+ * signed envelope) so downstream code can surface it in the trace.
  */
 async function fetchAPS(chainContext) {
   var wallet = chainContext.wallet;
+  var envelope = null;
+  var attData = null;
   if (wallet) {
     try {
-      var warmData = await fetchJSON(
-        "https://gateway.aeoess.com/api/v1/public/trust/" + encodeURIComponent(wallet)
+      envelope = await fetchJSON(
+        "https://gateway.aeoess.com/api/v1/public/trust/by-wallet/" + encodeURIComponent(wallet)
       );
-      if (warmData && warmData.found) {
-        var attData = await fetchJSON(
-          "https://gateway.aeoess.com/api/v1/public/trust/" + encodeURIComponent(wallet) + "/attestation"
+      if (envelope && envelope.found && envelope.agent_id) {
+        // Warm step required: /attestation returns 404 unless /trust/{id} is hit first
+        // to prime the gateway's attestation cache. Same pattern as profile.js and the
+        // demo fallback below.
+        await fetchJSON(
+          "https://gateway.aeoess.com/api/v1/public/trust/" + encodeURIComponent(envelope.agent_id)
         );
-        if (attData && attData.jws) {
-          return {
-            issuer: attData.issuer || "https://gateway.aeoess.com",
-            type: attData.type || "passport_grade",
-            kid: attData.kid || "gateway-v1",
-            alg: attData.alg || "EdDSA",
-            jwks: attData.jwks || "https://gateway.aeoess.com/.well-known/jwks.json",
-            signed: attData.signed,
-            sig: attData.jws
-          };
-        }
+        attData = await fetchJSON(
+          "https://gateway.aeoess.com/api/v1/public/trust/" + encodeURIComponent(envelope.agent_id) + "/attestation"
+        );
       }
     } catch (e) {
       // Fall through to demo
+      envelope = null;
+      attData = null;
     }
   }
-  // Fallback: demo agent
-  await fetchJSON("https://gateway.aeoess.com/api/v1/public/trust/" + DEMO_IDS.aps);
-  var data = await fetchJSON(
-    "https://gateway.aeoess.com/api/v1/public/trust/" + DEMO_IDS.aps + "/attestation"
-  );
-  if (!data.jws) throw new Error("No JWS in response");
+  if (!attData || !attData.jws) {
+    // Fallback: demo agent
+    envelope = await fetchJSON("https://gateway.aeoess.com/api/v1/public/trust/" + DEMO_IDS.aps);
+    attData = await fetchJSON(
+      "https://gateway.aeoess.com/api/v1/public/trust/" + DEMO_IDS.aps + "/attestation"
+    );
+    if (!attData.jws) throw new Error("No JWS in response");
+  }
+  var strictResult = await verifyAPSWalletRefBindings(envelope);
   return {
-    issuer: data.issuer || "https://gateway.aeoess.com",
-    type: data.type || "passport_grade",
-    kid: data.kid || "gateway-v1",
-    alg: data.alg || "EdDSA",
-    jwks: data.jwks || "https://gateway.aeoess.com/.well-known/jwks.json",
-    signed: data.signed,
-    sig: data.jws
+    issuer: attData.issuer || "https://gateway.aeoess.com",
+    type: attData.type || "passport_grade",
+    kid: attData.kid || "gateway-v1",
+    alg: attData.alg || "EdDSA",
+    jwks: attData.jwks || "https://gateway.aeoess.com/.well-known/jwks.json",
+    signed: attData.signed,
+    sig: attData.jws,
+    _strictWalletBinding: strictResult  // metadata, not part of signed envelope
   };
 }
 
@@ -487,6 +580,29 @@ async function resolveWallet(opts) {
     if (result.status === "fulfilled") {
       attestations.push(result.value);
       console.log("[+] " + providers[i].name + ": ok");
+      // Surface APS strict wallet_ref binding_sig verification result inline
+      if (providers[i].name === "APS" && result.value._strictWalletBinding) {
+        var strict = result.value._strictWalletBinding;
+        if (strict.verified === "pass") {
+          console.log("    strict wallet_ref binding_sig: PASS (" + strict.chains.length + " chains)");
+          for (var c = 0; c < strict.chains.length; c++) {
+            var ch = strict.chains[c];
+            console.log("      " + ch.chain + " " + ch.address + " bound_at=" + ch.bound_at + " → PASS");
+          }
+        } else if (strict.verified === "fail") {
+          console.log("    strict wallet_ref binding_sig: FAIL");
+          for (var c2 = 0; c2 < strict.chains.length; c2++) {
+            var ch2 = strict.chains[c2];
+            console.log("      " + ch2.chain + " " + ch2.address + " bound_at=" + ch2.bound_at + " → " + (ch2.verified ? "PASS" : "FAIL"));
+          }
+        } else if (strict.verified === "not_applicable") {
+          console.log("    strict wallet_ref binding_sig: not applicable (non-fixture passport)");
+        } else if (strict.verified === "no_wallet_ref") {
+          console.log("    strict wallet_ref binding_sig: no wallet_ref[] on envelope");
+        } else {
+          console.log("    strict wallet_ref binding_sig: " + strict.verified + (strict.reason ? " — " + strict.reason : ""));
+        }
+      }
     } else {
       console.log("[-] " + providers[i].name + ": " + result.reason.message);
       errors.push({ provider: providers[i].name, error: result.reason.message });
