@@ -99,7 +99,10 @@ An analytical split across the envelope worth naming because it clarifies how co
 | Job performance | Maiat | `sub`, `agent` |
 | Compliance risk | Revettr | `sub` |
 | Identity verification | AgentID v1.1.0 | `bound_addresses`, `solana_address`, `wallet_address` |
+| Passport grade (governance) | APS `gateway-v1` | `wallet_ref[].address` (envelope JWS, gateway key) + `wallet_ref[].binding_sig` (per-entry, passport pubkey) |
 | Settlement witness (new receipts) | SAR `sar-prod-ed25519-03` | `counterparty` |
+
+**APS has a two-layer binding model worth naming.** The `wallet_ref[]` array is inside the envelope-level Ed25519 JWS signed by the `gateway-v1` key, which proves "the APS gateway attested that this agent has these bound wallets at the named `bound_at` timestamps." Each entry additionally carries a per-wallet `binding_sig` — a separate Ed25519 signature over the canonical binding payload `{passport_id, chain, address, bound_at}` (via the reference `canonicalize()` algorithm), signed by the passport's own private key. The per-wallet signature verifies against the passport pubkey (published in a fixture for the canonical `aeoess-bound-demo` test passport, and in the passport object itself for production passports). Both layers verify offline and compose: the gateway layer says "our infrastructure observed this binding," and the passport layer says "the passport holder cryptographically claimed this binding themselves." Consumers can require either or both layers depending on their trust model.
 
 **Wallet-discoverable content dimensions.** The signed JWS payload commits to what is being attested about (a repo, a task outcome, a delivery record). The wallet is a lookup key that discovers the relevant signed subject. A verifier holding only the signed bytes can prove "this repo scored 100" or "this task outcome matched spec" — but not "this wallet owns this repo." This is not a limitation; it is the correct architectural shape for dimensions that attest to things rather than identities.
 
@@ -361,7 +364,7 @@ Docs: [github.com/JhiNResH/maiat-protocol](https://github.com/JhiNResH/maiat-pro
 
 ### 3.5 APS (Agent Passport System) — `passport_grade`
 
-Agent identity verification with graded passports. Measures how deeply an agent's identity has been verified.
+Agent identity verification with graded passports. Measures how deeply an agent's identity has been verified, and cryptographically binds the passport to one or more wallet addresses via a per-wallet signature architecture.
 
 | Property | Value |
 |----------|-------|
@@ -369,28 +372,85 @@ Agent identity verification with graded passports. Measures how deeply an agent'
 | Algorithm | EdDSA (Ed25519) |
 | Key ID | `gateway-v1` |
 | JWKS | `https://gateway.aeoess.com/.well-known/jwks.json` |
+| SDK | `agent-passport-system` — [github.com/aeoess/agent-passport-system](https://github.com/aeoess/agent-passport-system) |
+| Reference verifier | [`verifyBoundWallet()` in `src/v2/wallet-binding/bind.ts`](https://github.com/aeoess/agent-passport-system/blob/main/src/v2/wallet-binding/bind.ts) |
 
-**Getting started:** No API key required. Public trust endpoint.
+**Getting started:** No API key required. Three endpoints cover agent-first, wallet-first, and attestation retrieval flows.
 
 ```bash
-curl https://gateway.aeoess.com/api/v1/public/trust/{agentId}/attestation
+# Agent-first lookup — agent_id → envelope (warm step required before /attestation)
+curl https://gateway.aeoess.com/api/v1/public/trust/{agent_id}
+curl https://gateway.aeoess.com/api/v1/public/trust/{agent_id}/attestation
+
+# Wallet-first reverse index — address → envelope with wallet_ref[] populated
+curl https://gateway.aeoess.com/api/v1/public/trust/by-wallet/{address}
 ```
+
+The reverse index endpoint was shipped 2026-04-10 and enables SkyeProfile-style orchestrators to start from a wallet address, resolve the bound passport, and fetch the signed attestation without needing to know the `agent_id` in advance. It returns `found: false` with a `reason` field for unbound wallets. The attestation endpoint is cache-backed by `agent_id`; a warm GET on `/trust/{agent_id}` is required before `/trust/{agent_id}/attestation` returns a signed JWS (cold requests return 404).
 
 Docs: [github.com/aeoess/agent-passport-system](https://github.com/aeoess/agent-passport-system)
 
-**Signed payload fields:**
+**Signed payload fields (envelope, Ed25519 JWS signed by `gateway-v1`):**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `agent_id` | string | Agent identifier. |
+| `agent_id` | string | Passport identifier (e.g., `aeoess-bound-demo`). |
 | `grade` | number | Passport grade (0-3). |
 | `grade_label` | string | Human-readable grade label. |
 | `risk_level` | string | Risk assessment level. |
 | `context_continuity` | object | Context continuity metrics. |
 | `has_delegation` | boolean | Whether the agent has active delegation. |
+| `has_wallet` | boolean | Legacy envelope-level flag indicating any wallet is registered. |
+| `wallet_ref` | array | Bound wallets, each with `{chain, address, bound_at, binding_sig}`. Inside envelope signature scope. |
+| `matched_wallet` | object | The specific `wallet_ref[]` entry that matched the query, when the lookup was wallet-first. |
 | `evaluatedAt` | string | ISO 8601 evaluation timestamp. |
 
-**Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
+**Signature:** Compact JWS (JWT) with EdDSA (Ed25519), signed by the `gateway-v1` key.
+
+**Per-wallet binding signatures (`wallet_ref[].binding_sig`) — the strict layer.**
+
+Each entry in `wallet_ref[]` carries its own `binding_sig`, a raw Ed25519 signature independent of the envelope JWS. The signature is over the canonical payload:
+
+```
+canonicalize({
+  passport_id: <string>,
+  chain: <string>,        // e.g. "ethereum", "base"
+  address: <string>,      // wallet address, case-preserving
+  bound_at: <string>      // ISO 8601 with millisecond precision
+})
+```
+
+where `canonicalize()` is the reference algorithm in [`src/core/canonical.ts`](https://github.com/aeoess/agent-passport-system/blob/main/src/core/canonical.ts) — sort keys alphabetically, strip null/undefined, compact JSON (no whitespace). The `binding_sig` is signed by the **passport's own private key**, not the gateway key. This gives the wallet binding two independent cryptographic layers:
+
+1. **Envelope layer** (`gateway-v1` JWS) — proves "the APS gateway's infrastructure observed and attested this binding at the named timestamp." Verifiable against `https://gateway.aeoess.com/.well-known/jwks.json`.
+2. **Per-wallet layer** (`binding_sig` against passport pubkey) — proves "the passport holder themselves cryptographically committed to this binding." Verifiable against the passport's public key, which lives in the passport object itself for production passports, and in a published fixture file for the canonical `aeoess-bound-demo` test passport.
+
+Both layers verify offline. A consumer wanting the strongest possible "this wallet is bound to this passport" guarantee can require both. A consumer accepting the gateway's observation alone can verify only the envelope layer.
+
+**Strict verification path for the `aeoess-bound-demo` fixture** (canonical reference implementation):
+
+```javascript
+// Reference implementation in insumer-examples/wallet-resolve.js: verifyAPSWalletRefBindings()
+const fixture = await fetch('https://raw.githubusercontent.com/aeoess/agent-passport-system/main/tests/fixtures/wallet-binding/aeoess-bound-demo.json').then(r => r.json());
+const pubKey = createPublicKey({
+  key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(fixture.fixture_public_key, 'hex')]),
+  format: 'der', type: 'spki'
+});
+for (const ref of envelope.wallet_ref) {
+  const payload = canonicalize({
+    passport_id: envelope.agent_id,
+    chain: ref.chain,
+    address: ref.address,
+    bound_at: ref.bound_at
+  });
+  const ok = verify(null, Buffer.from(payload, 'utf8'), pubKey, Buffer.from(ref.binding_sig, 'hex'));
+  // ok === true means this wallet is cryptographically bound to the passport
+}
+```
+
+For production passports (non-fixture), the same verification logic applies, but the pubkey is fetched from the passport object's `publicKey` field rather than the fixture file. The canonical payload shape and canonicalization are identical.
+
+**Wallet-binding category**: APS is wallet-bound at both layers. The `wallet_ref[]` array is inside the envelope signature scope, and each entry's `binding_sig` is inside an independent per-entry signature scope. A verifier holding only the signed bytes can prove "this specific wallet → this passport" twice over.
 
 
 ### 3.6 AgentID — `trust_verification`
