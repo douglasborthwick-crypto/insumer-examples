@@ -66,6 +66,16 @@ This format emerged from convergence across nine independent issuers contributin
 - **Self-describing entries.** Each attestation carries its own `alg`, `kid`, and `jwks`. No shared key registry, no trust anchors beyond JWKS.
 - **Signature format is polymorphic.** If `sig` contains exactly two dots, it is a compact JWS. Otherwise, it is a base64-encoded raw signature over `JSON.stringify(signed)`.
 
+### Reference Implementation Criteria
+
+The issuer table in Section 2 lists implementations that meet the format's reference criteria. To be referenced as a live issuer in this spec, an implementation MUST:
+
+1. **Publish a JWKS endpoint** at a stable URL, returning a JWK set containing the `kid` referenced in the attestation entry.
+2. **Sign attestations end-to-end.** The `sig` field MUST verify against the public key fetched from the JWKS endpoint, over the canonical bytes of the signed payload — `JSON.stringify(signed)` for ES256 raw P1363, `header.payload` for compact JWS, or either insertion-order or sorted-key JSON for EdDSA raw (the reference verifier accepts both).
+3. **Be reproducible by a third-party verifier.** The reference verifier (`multi-attest-verify.js`) MUST resolve the JWKS, fetch a live attestation, and return a verified result with no issuer cooperation beyond the published endpoints.
+
+Schema reservations, aspirational commitments, or proposed attestation dimensions that have not shipped a live JWKS and a verifiable attestation are not live issuers. They may be tracked elsewhere as future work, but they are not part of this spec's reference set.
+
 ---
 
 ## 2. Attestation Types
