@@ -4,3 +4,9 @@ node_modules/
 __pycache__/
 .DS_Store
 test-harness/
+
+# Foundry
+out/
+cache/
+lib/
+broadcast/
