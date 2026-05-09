@@ -97,7 +97,7 @@ Verify the signature offline via JWKS: `https://api.insumermodel.com/v1/jwks`
 - **NFT ownership**: Does this wallet own an NFT from collection Y on chain Z?
 - **Multiple conditions**: Up to 10 conditions per call, across any mix of 33 chains
 - **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Solana, XRPL, Bitcoin, and 23 more
-- **Trust profiles**: 40-check composite trust score across 24 chains (`POST /v1/trust`)
+- **Fact profiles**: 40-check composite wallet-state profile across 24 chains (`POST /v1/trust`) — no score, no opinion, just cryptographically verifiable evidence organized by dimension
 
 Every response is signed with ECDSA P-256. Pass the wallet auth result to downstream systems as cryptographic proof without re-querying the chain.
 
