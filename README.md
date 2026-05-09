@@ -106,7 +106,7 @@ Every response is signed with ECDSA P-256. Pass the wallet auth result to downst
 - **Commerce** — wallet-based discounts and eligibility (WooCommerce, Shopify)
 - **Compliance** — KYA (Know Your Agent) checks before DeFi interactions
 - **DAO governance** — verify voting eligibility across chains
-- **Agent trust scoring** — cold-start reputation signal for new AI agents
+- **Agent cold-start signals** — wallet-state evidence as a baseline before behavioral history accrues for new AI agents
 
 ## Examples
 
@@ -115,7 +115,7 @@ Every response is signed with ECDSA P-256. Pass the wallet auth result to downst
 | [quickstart.sh](quickstart.sh) | Bash | Generates a key and runs a wallet auth check — zero setup |
 | [verify.js](verify.js) | Node.js | Express server with wallet auth for token-gated discounts |
 | [verify.py](verify.py) | Python | On-chain verification with signature handling |
-| [verify-xrpl.js](verify-xrpl.js) | Node.js | XRPL: XRP, RLUSD, USDC trust lines, NFTs, trust profiles |
+| [verify-xrpl.js](verify-xrpl.js) | Node.js | XRPL: XRP, RLUSD, USDC trust lines, NFTs, fact profiles |
 
 ### XRPL
 
@@ -289,7 +289,7 @@ The flow:
 |------|-------------|
 | [agenttalk-example.js](agenttalk-example.js) | Bilateral + multi-party flows: declare → join → verify → kick → leave |
 
-AgentTalk is a [Skye Meta](https://skyemeta.com) product, powered by InsumerAPI. | API: `https://skyemeta.com/api/agenttalk/` | Docs: [skyemeta.com/agenttalk](https://skyemeta.com/agenttalk/)
+AgentTalk is a [SkyeMeta](https://skyemeta.com) product, powered by InsumerAPI. | API: `https://skyemeta.com/api/agenttalk/` | Docs: [skyemeta.com/agenttalk](https://skyemeta.com/agenttalk/)
 
 ## Links
 
