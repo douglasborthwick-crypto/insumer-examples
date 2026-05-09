@@ -65,8 +65,8 @@ interface IERC165 {
 ///      ----------------------------------------------------------------
 ///      Predicates that read on-chain holdings (ERC-721, ERC-1155,
 ///      subscription) are restricted to state on the same EVM chain as
-///      the registry. Wallet state on non-EVM chains (Solana, Tron,
-///      XRPL, Bitcoin) cannot be read from a Solidity contract. The
+///      the registry. Wallet state on non-EVM chains (Solana, XRPL,
+///      Bitcoin) cannot be evaluated from a Solidity predicate. The
 ///      off-chain issuer evaluates the condition set against the
 ///      relevant chain data, signs a verdict, and the on-chain
 ///      predicate verifies the signature.
@@ -84,6 +84,37 @@ interface IERC165 {
 ///      `P256VERIFY` precompile: ~3,450 gas. ABI decode of the seven-tuple
 ///      payload + bookkeeping: ~3-5,000 gas. Total well under the
 ///      ERC-8257 `staticcall` cap of 200,000 gas.
+///
+/// @dev GETTING CREDENTIALS
+///      ----------------------------------------------------------------
+///      Free tier — no credit card. 100 daily reads + 10 attestation credits.
+///
+///      Developers (email-based):
+///        POST https://api.insumermodel.com/v1/keys/create
+///        body: {"email":"YOUR_EMAIL","appName":"erc8257-predicate","tier":"free"}
+///
+///      Agents (wallet-based, no email):
+///        POST https://api.insumermodel.com/v1/keys/buy
+///        body: {"txHash":"0x...","chainId":8453,"amount":5,"appName":"my-agent"}
+///        Agent sends USDC/USDT/BTC to the platform wallet, then POSTs the tx
+///        hash — sending wallet is the identity. Stablecoin auto-detected from
+///        the transfer log. Minimum 5 stablecoin units; credits scale with
+///        amount.
+///
+///      Once the key is provisioned, fetch a signed attestation:
+///        POST https://api.insumermodel.com/v1/attest
+///        headers: {"X-API-Key": "<your_key>"}
+///        body: {"wallet": "0x...", "conditions": [{"type":"token_balance",
+///               "contractAddress":"0x...", "chainId": 1, "threshold": 1,
+///               "decimals": 6, "label": "USDC >= 1 on Ethereum"}]}
+///
+///      Decode the response into the seven-tuple `data` payload (see
+///      IWalletStateAttestation.sol for the layout) and pass it to
+///      `IToolRegistry.hasAccess(toolId, account, data)`.
+///
+///      API reference:        https://insumermodel.com/developers/api-reference/
+///      JWKS:                 https://api.insumermodel.com/.well-known/jwks.json
+///      Verification library: npm install insumer-verify
 ///
 /// @custom:audit status=unaudited
 contract InsumerAccessPredicate is IAccessPredicate, IERC165 {
