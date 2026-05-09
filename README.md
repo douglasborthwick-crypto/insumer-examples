@@ -137,6 +137,23 @@ curl -s -X POST https://api.insumermodel.com/v1/attest \
   }'
 ```
 
+## On-Chain Reference Contracts
+
+EVM Solidity contracts that consume InsumerAPI's off-chain signed attestations on-chain. The off-chain primitive issues a signed verdict over a wallet's condition set; these contracts verify the signature against the published JWKS via the RIP-7212 `P256VERIFY` precompile (`0x0100`), then expose a verifiable result to a consumer surface. Same family across three ERC consumer specs — one primitive, three consumer interfaces.
+
+Live on chains where RIP-7212 is available: Base, Optimism, Arbitrum, Polygon, Scroll, ZKsync, Celo. Issuer JWKS: `https://api.insumermodel.com/.well-known/jwks.json` (kid `insumer-attest-v1`, P-256 / ES256).
+
+| File | Spec | Role |
+|------|------|------|
+| [InsumerWalletStateVerifier.sol](InsumerWalletStateVerifier.sol) | ERC-8183 | Implements `IWalletStateVerifier` for hook-based access gating. Returns `(verified, validUntil)` keyed on `(wallet, conditionsHash)`. Anchored mode: immutable issuer pubkey at construction, relayer untrusted, signature verified on-chain via RIP-7212 before storage. |
+| [InsumerTrustOracle.sol](InsumerTrustOracle.sol) | ERC-8183 | Implements `ITrustOracle` for fact-profile-based gating. Bridges `POST /v1/trust` output (`totalPassed / totalChecks`) into the `getTrustScore(address) → uint256` interface required by hooks. 30-minute freshness window matching the API's `expiresAt` TTL. |
+| [InsumerKeeperHook.sol](InsumerKeeperHook.sol) | ERC-8191 | Implements `IKeeperHook` for recurring-payment cycle gating. Verifies an ECDSA P-256 attestation in `beforeKeep` before each collection. Pattern 4.2 (Trust Gating) from the IKeeperHook companion spec. |
+| [InsumerAccessPredicate.sol](InsumerAccessPredicate.sol) | ERC-8257 | Implements `IAccessPredicate` for agent tool registry access gating. Decodes a seven-tuple proof (`pass`, `wallet`, `conditionHash`, `blockNumber`, `r`, `s`, `messageHash`) from the `data` parameter, verifies P-256 inline, returns `false` (no revert) on failure so `tryHasAccess` cleanly distinguishes denial from malfunction. Advertises `IAccessPredicate` + `IERC165` for registration validation. |
+| [IWalletStateAttestation.sol](IWalletStateAttestation.sol) | ERC-8257 | Marker interface for the new `AccessRequirement.kind` proposed on [ethereum-magicians #28457](https://ethereum-magicians.org/t/erc-8257-agent-tool-registry/28457/3). Selector `0x7a111640 = bytes4(keccak256("walletStateAttestation()"))`, verified non-colliding with the three pinned `IRequirementTypes` markers. |
+| [InsumerAccessPredicate.t.sol](InsumerAccessPredicate.t.sol) | — | Foundry test suite for `InsumerAccessPredicate.sol` — 16 cases including a happy-path that runs real ECDSA P-256 verification of a live signed attestation through the RIP-7212 precompile, plus eight failure modes (tampered signature, tampered message hash, wrong account, wrong condition hash, `pass=false`, stale, future-dated, empty data). Run with `forge test` (requires `evm_version = "osaka"` in `foundry.toml` to activate the precompile in Foundry's local REVM). |
+
+Architectural pattern across all four production contracts: InsumerAPI signs off-chain, an authorized relayer (or the caller, for the inline predicate) supplies the signed bytes on-chain, the contract verifies the P-256 signature against the immutable issuer pubkey via RIP-7212, then exposes the verifiable result to its consumer surface (hook / oracle / predicate). The off-chain primitive is the issuer; these contracts are the consumers.
+
 ## Agent SDKs
 
 - **MCP Server** (Claude, Cursor, Windsurf): `npx -y mcp-server-insumer` — [npm](https://www.npmjs.com/package/mcp-server-insumer)
@@ -217,6 +234,7 @@ Post your JWKS URL + sample JWT on [issues/1](https://github.com/douglasborthwic
 
 | File | Description |
 |------|-------------|
+| [wallet-resolve.js](wallet-resolve.js) | Multi-attestation fetcher — calls InsumerAPI first (wallet-state foundation layer), then fans out to all configured providers in parallel; outputs a standard multi-attestation envelope compatible with `multi-attest-verify.js` |
 | [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 10 signed dimensions across 9 independent issuers (ES256 + EdDSA) |
 | [thoughtproof-verify-example.js](thoughtproof-verify-example.js) | ThoughtProof attestation walkthrough — JWKS fetch, EdDSA key import |
 | [x402-sar-integration.js](x402-sar-integration.js) | x402 SAR integration — attestation → payment → delivery proof → offline verification |
