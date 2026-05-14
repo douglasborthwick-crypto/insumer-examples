@@ -183,12 +183,12 @@ InsumerAPI is live and can serve as a reference implementation for the `wallet_s
 | Per-condition attestation | `POST https://api.insumermodel.com/v1/attest` — caller-supplied conditions, returns raw sig + compact JWS |
 | Curated wallet profile | `POST https://api.insumermodel.com/v1/trust` — EVM wallet, 4 dimensions (stablecoins, NFTs, governance, staking), 36 default conditions |
 | Signed payload scope | `wallet` is committed inside the signed bytes (`sub` claim for JWT, `wallet` field for `POST /v1/trust`) |
-| Chain coverage | 33 chains — 30 EVM (including Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Avalanche, Linea, Scroll, zkSync, Celo, Gnosis, and others) + Solana + XRPL + Bitcoin |
+| Chain coverage | 37 chains — 31 EVM (including Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Avalanche, XDC, Linea, Scroll, zkSync, Celo, Gnosis, and others) + Solana + XRPL + Bitcoin + Tron + Stellar + Sui |
 | Signature format | P1363 base64 (64 bytes) for raw signatures, or compact JWS when `format: "jwt"` is requested on `/v1/attest` |
 | Condition tamper detection | Each result includes a `conditionHash` = SHA-256 of the canonical (sorted-key) evaluated condition JSON — consumers that submitted conditions can recompute and compare |
 | Privacy | Attestations expose boolean `met: true/false` per condition, never the underlying balance — threshold satisfaction, not position disclosure |
 
-InsumerAPI has been running in production for 33-chain wallet state evaluation since before this spec was drafted. It is already the foundation layer in `MULTI-ATTESTATION-SPEC.md` (issue [`douglasborthwick-crypto/insumer-examples#1`](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)), underneath nine specialized dimensions including three that are already reference implementations in the RFC (AgentGraph, RNWY, AgentID). The foundation shape is: `wallet_state` answers "what does this wallet hold and do on-chain," and the specialized dimensions answer adjacent questions on top of that foundation.
+InsumerAPI has been running in production for 37-chain wallet state evaluation since before this spec was drafted. It is already the foundation layer in `MULTI-ATTESTATION-SPEC.md` (issue [`douglasborthwick-crypto/insumer-examples#1`](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)), underneath nine specialized dimensions including three that are already reference implementations in the RFC (AgentGraph, RNWY, AgentID). The foundation shape is: `wallet_state` answers "what does this wallet hold and do on-chain," and the specialized dimensions answer adjacent questions on top of that foundation.
 
 ## Weighing in on the open questions
 

@@ -80,7 +80,7 @@ function fetchJSON(url, options, maxRedirects) {
 // ─── Provider fetchers ───────────────────────────────────────────
 
 /**
- * 1. InsumerAPI (foundation) — reads wallet state across 33 chains.
+ * 1. InsumerAPI (foundation) — reads wallet state across 37 chains.
  * Returns the signed trust profile + chain context for downstream providers.
  */
 async function fetchInsumerAPI(wallet, solanaWallet, xrplWallet, bitcoinWallet) {

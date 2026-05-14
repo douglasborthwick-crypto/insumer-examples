@@ -1,6 +1,6 @@
 # InsumerAPI Examples
 
-Condition-based access infrastructure for 33 blockchains. Send a wallet and conditions, get a signed boolean. No secrets, no identity, no static credentials.
+Condition-based access infrastructure for 37 blockchains. Send a wallet and conditions, get a signed boolean. No secrets, no identity, no static credentials.
 
 ## Try It (no key needed)
 
@@ -95,9 +95,9 @@ Verify the signature offline via JWKS: `https://api.insumermodel.com/v1/jwks`
 
 - **Token balances**: Does this wallet hold at least X of token Y on chain Z?
 - **NFT ownership**: Does this wallet own an NFT from collection Y on chain Z?
-- **Multiple conditions**: Up to 10 conditions per call, across any mix of 33 chains
-- **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Solana, XRPL, Bitcoin, and 23 more
-- **Fact profiles**: 40-check composite wallet-state profile across 24 chains (`POST /v1/trust`) — no score, no opinion, just cryptographically verifiable evidence organized by dimension
+- **Multiple conditions**: Up to 10 conditions per call, across any mix of 37 chains
+- **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, XDC, Solana, XRPL, Bitcoin, Tron, Stellar, Sui, and 23 more EVM chains
+- **Fact profiles**: 49-check composite wallet-state profile across 27 chains (`POST /v1/trust`) — no score, no opinion, just cryptographically verifiable evidence organized by dimension
 
 Every response is signed with ECDSA P-256. Pass the wallet auth result to downstream systems as cryptographic proof without re-querying the chain.
 
@@ -116,6 +116,9 @@ Every response is signed with ECDSA P-256. Pass the wallet auth result to downst
 | [verify.js](verify.js) | Node.js | Express server with wallet auth for token-gated discounts |
 | [verify.py](verify.py) | Python | On-chain verification with signature handling |
 | [verify-xrpl.js](verify-xrpl.js) | Node.js | XRPL: XRP, RLUSD, USDC trust lines, NFTs, fact profiles |
+| [verify-tron.js](verify-tron.js) | Node.js | Tron: native TRX, USDT-TRC20, fact profile with Tron dimension |
+| [verify-stellar.js](verify-stellar.js) | Node.js | Stellar: native XLM, USDC trustline, BENJI trustline, fact profile |
+| [verify-sui.js](verify-sui.js) | Node.js | Sui: native SUI, USDC, fact profile with institutional dimension |
 
 ### XRPL
 
@@ -177,11 +180,11 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 }
 ```
 
-## Supported Chains (33)
+## Supported Chains (37)
 
-**EVM (30):** Ethereum (1), BNB Chain (56), Base (8453), Avalanche (43114), Polygon (137), Arbitrum (42161), Optimism (10), Chiliz (88888), Soneium (1868), Plume (98866), Sonic (146), Gnosis (100), Mantle (5000), Scroll (534352), Linea (59144), zkSync Era (324), Blast (81457), Taiko (167000), Ronin (2020), Celo (42220), Moonbeam (1284), Moonriver (1285), Viction (88), opBNB (204), World Chain (480), Unichain (130), Ink (57073), Sei (1329), Berachain (80094), ApeChain (33139)
+**EVM (31):** Ethereum (1), BNB Chain (56), Base (8453), Avalanche (43114), Polygon (137), Arbitrum (42161), Optimism (10), XDC (50), Chiliz (88888), Soneium (1868), Plume (98866), Sonic (146), Gnosis (100), Mantle (5000), Scroll (534352), Linea (59144), zkSync Era (324), Blast (81457), Taiko (167000), Ronin (2020), Celo (42220), Moonbeam (1284), Moonriver (1285), Viction (88), opBNB (204), World Chain (480), Unichain (130), Ink (57073), Sei (1329), Berachain (80094), ApeChain (33139)
 
-**Non-EVM:** Solana (`chainId: "solana"`), XRPL (`chainId: "xrpl"` — native XRP, trust line tokens, NFTs), Bitcoin (`bitcoinWallet` — native BTC, P2PKH/P2SH/bech32/Taproot)
+**Non-EVM (6):** Solana (`chainId: "solana"`), XRPL (`chainId: "xrpl"` — native XRP, trust line tokens, NFTs), Bitcoin (`bitcoinWallet` — native BTC, P2PKH/P2SH/bech32/Taproot), Tron (`chainId: "tron"` — native TRX, TRC-20 incl. USDT-TRC20), Stellar (`chainId: "stellar"` — native XLM, classic trustlines incl. USDC and BENJI), Sui (`chainId: "sui"` — native SUI, Sui-native tokens incl. USDC)
 
 ## Pricing
 
@@ -246,7 +249,7 @@ Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Would Yo
 
 ## Agent-to-Agent Sessions (AgentTalk)
 
-A SCIF for AI agents. Every agent in the room verifies the same on-chain conditions before information moves — like verifying clearance before entering a secure facility. Bilateral sessions, working groups, or town halls. No artificial cap on participants. Up to 10 composable conditions per channel across any mix of 33 chains.
+A SCIF for AI agents. Every agent in the room verifies the same on-chain conditions before information moves — like verifying clearance before entering a secure facility. Bilateral sessions, working groups, or town halls. No artificial cap on participants. Up to 10 composable conditions per channel across any mix of 37 chains.
 
 ```json
 {
@@ -263,7 +266,7 @@ A SCIF for AI agents. Every agent in the room verifies the same on-chain conditi
 }
 ```
 
-Six conditions, three chains, every agent in the room, all must pass. But this is one configuration — not the ceiling. One condition on one chain, or ten spanning all 33. Two agents or two hundred. The strength of the lock and the size of the room are at the creator's discretion.
+Six conditions, three chains, every agent in the room, all must pass. But this is one configuration — not the ceiling. One condition on one chain, or ten spanning all 37. Two agents or two hundred. The strength of the lock and the size of the room are at the creator's discretion.
 
 Dynamic enforcement — lose a credential, get ejected on re-verify. Creator can kick. Agents can leave.
 

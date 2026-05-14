@@ -12,7 +12,7 @@
 
 The Multi-Attestation Payload Format defines a composable envelope for bundling independently signed attestations from multiple issuers into a single verifiable object. Each attestation is self-describing — it carries its own algorithm, key identifier, and JWKS discovery endpoint. No shared registry or coordination between issuers is required. A relying party selects attestations by `type`, fetches each issuer's public key via standard JWKS, and verifies signatures independently.
 
-This format emerged from convergence across nine independent issuers contributing ten signed dimensions: InsumerAPI (wallet state — the foundation layer, 33 chains), Revettr (compliance risk), ThoughtProof (reasoning integrity), RNWY (two dimensions — agent-level behavioral trust AND operator-level wallet intelligence), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), and SAR (settlement witness). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
+This format emerged from convergence across nine independent issuers contributing ten signed dimensions: InsumerAPI (wallet state — the foundation layer, 37 chains), Revettr (compliance risk), ThoughtProof (reasoning integrity), RNWY (two dimensions — agent-level behavioral trust AND operator-level wallet intelligence), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), and SAR (settlement witness). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
 
 ---
 
@@ -107,7 +107,7 @@ An analytical split across the envelope worth naming because it clarifies how co
 
 | Dimension | Provider | Signed field |
 |---|---|---|
-| Wallet state (foundation, 33 chains) | InsumerAPI | `wallet` (EVM via `/v1/trust`) / JWT `sub` (non-EVM via `/v1/attest`) |
+| Wallet state (foundation, 37 chains) | InsumerAPI | `wallet` (EVM via `/v1/trust`) / JWT `sub` (non-EVM via `/v1/attest`) |
 | Behavioral trust (agent) | RNWY v2 | `owner` |
 | Wallet intelligence (operator) | RNWY `rnwy-wallet-v1` | `sub`, `wallet` |
 | Job performance | Maiat | `sub`, `agent` |
@@ -134,7 +134,7 @@ As of the 2026-04-10 SAR kid rotation to `sar-prod-ed25519-03`, the `counterpart
 
 ### 3.1 InsumerAPI — `wallet_state` (foundation layer)
 
-**InsumerAPI is the foundation layer.** It reads wallet state across 33 chains (30 EVM + Solana + XRPL + Bitcoin) and establishes the chain context every other dimension composes on top of. The other nine dimensions answer specialized questions; the foundation answers "what does this wallet actually hold and do on-chain."
+**InsumerAPI is the foundation layer.** It reads wallet state across 37 chains (31 EVM + Solana + XRPL + Bitcoin + Tron + Stellar + Sui) and establishes the chain context every other dimension composes on top of. The other nine dimensions answer specialized questions; the foundation answers "what does this wallet actually hold and do on-chain."
 
 Privacy-preserving on-chain verification. Returns signed booleans. No balances exposed.
 
