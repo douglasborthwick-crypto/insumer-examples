@@ -12,7 +12,7 @@
 
 The Multi-Attestation Payload Format defines a composable envelope for bundling independently signed attestations from multiple issuers into a single verifiable object. Each attestation is self-describing — it carries its own algorithm, key identifier, and JWKS discovery endpoint. No shared registry or coordination between issuers is required. A relying party selects attestations by `type`, fetches each issuer's public key via standard JWKS, and verifies signatures independently.
 
-This format emerged from convergence across nine independent issuers contributing ten signed dimensions: InsumerAPI (wallet state — the foundation layer, 37 chains), Revettr (compliance risk), ThoughtProof (reasoning integrity), RNWY (two dimensions — agent-level behavioral trust AND operator-level wallet intelligence), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), and SAR (settlement witness). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
+This format emerged from convergence across ten independent issuers contributing eleven signed dimensions: InsumerAPI (wallet state — the foundation layer, 37 chains), Revettr (compliance risk), ThoughtProof (reasoning integrity), RNWY (two dimensions — agent-level behavioral trust AND operator-level wallet intelligence), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), SAR (settlement witness), and TrustLayer (cross-chain reputation, 19 chains). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
 
 ---
 
@@ -73,7 +73,7 @@ The issuer table in Section 2 is this spec's reference set. Participation in the
 To be added to the reference set, an implementation MUST:
 
 1. **Publish a JWKS endpoint** at a stable URL, returning a JWK set containing the `kid` referenced in the attestation entry.
-2. **Sign attestations end-to-end.** The `sig` field MUST verify against the public key fetched from the JWKS endpoint, over the canonical bytes of the signed payload — `JSON.stringify(signed)` for ES256 raw P1363, `header.payload` for compact JWS, or either insertion-order or sorted-key JSON for EdDSA raw (the reference verifier accepts both).
+2. **Sign attestations end-to-end.** The `sig` field MUST verify against the public key fetched from the JWKS endpoint, over the canonical bytes of the signed payload — `header.payload` for compact JWS, or either insertion-order `JSON.stringify(signed)` or sorted-key (canonical) JSON for ES256 raw P1363 and EdDSA raw (the reference verifier accepts both for both algorithms).
 3. **Be reproducible by a third-party verifier.** The reference verifier (`multi-attest-verify.js`) MUST resolve the JWKS, fetch a live attestation, and return a verified result with no issuer cooperation beyond the published endpoints.
 
 When all three conditions hold against a live attestation, the implementation is added to the Section 2 table as a live issuer.
@@ -96,6 +96,7 @@ Schema reservations, aspirational commitments, or proposed attestation dimension
 | `trust_verification` | AgentID | EdDSA (Ed25519) | compact JWS (JWT) | 1 hour |
 | `security_posture` | AgentGraph | EdDSA (Ed25519) | compact JWS (JWT) | 24 hours |
 | `settlement_witness` | SAR | EdDSA (Ed25519) | compact JWS (JWT, kid `sar-prod-ed25519-03` current, `-02`/`-01` legacy) | per-issuer |
+| `cross_chain_reputation` | TrustLayer | ES256 | base64url P1363 over canonical (sorted-key) JSON | per-issuer |
 
 ---
 
@@ -115,6 +116,7 @@ An analytical split across the envelope worth naming because it clarifies how co
 | Identity verification | AgentID v1.1.0 | `bound_addresses`, `solana_address`, `wallet_address` |
 | Passport grade (governance) | APS `gateway-v1` | `wallet_ref[].address` (envelope JWS, gateway key) + `wallet_ref[].binding_sig` (per-entry, passport pubkey) |
 | Settlement witness (new receipts) | SAR `sar-prod-ed25519-03` | `counterparty` |
+| Cross-chain reputation | TrustLayer `trustlayer-signing-1` | `wallet` |
 
 **APS has a two-layer binding model worth naming.** The `wallet_ref[]` array is inside the envelope-level Ed25519 JWS signed by the `gateway-v1` key, which proves "the APS gateway attested that this agent has these bound wallets at the named `bound_at` timestamps." Each entry additionally carries a per-wallet `binding_sig` — a separate Ed25519 signature over the canonical binding payload `{passport_id, chain, address, bound_at}` (via the reference `canonicalize()` algorithm), signed by the passport's own private key. The per-wallet signature verifies against the passport pubkey (published in a fixture for the canonical `aeoess-bound-demo` test passport, and in the passport object itself for production passports). Both layers verify offline and compose: the gateway layer says "our infrastructure observed this binding," and the passport layer says "the passport holder cryptographically claimed this binding themselves." Consumers can require either or both layers depending on their trust model.
 
@@ -705,6 +707,55 @@ Docs: [rnwy.com/api](https://rnwy.com/api)
 **Signature:** Compact JWS (JWT) with ES256.
 
 
+### 3.11 TrustLayer — `cross_chain_reputation`
+
+Cross-chain wallet linkage and reputation. Answers: how many addresses across how many chains does this wallet operate under, and what is the consolidated reputation across the cross-chain identity graph? Sibling to RNWY's `behavioral_trust` (agent-level) and `wallet_intelligence` (operator-level) — TrustLayer's signal is the cross-chain identity graph itself, not behavior or operator history.
+
+| Property | Value |
+|----------|-------|
+| Issuer URI | `https://api.thetrustlayer.xyz` |
+| Algorithm | ES256 (ECDSA P-256) |
+| Key ID | `trustlayer-signing-1` |
+| JWKS | `https://api.thetrustlayer.xyz/.well-known/jwks.json` |
+| Default TTL | per-issuer (signed `attested_at` present; consumers default to 30 minutes) |
+
+**Getting started:** No API key required. Wallet-bound endpoint accepts EVM (`0x…`) or Solana base58 addresses.
+
+```bash
+# Default — highest-scored agent owned by the wallet across all indexed chains
+curl https://api.thetrustlayer.xyz/attest/wallet/{wallet}
+
+# Chain-scoped query — agent on a specific chain
+curl "https://api.thetrustlayer.xyz/attest/wallet/{wallet}?chain=base"
+```
+
+Reference verifier: [`goatgaucho/trust-layer/verify-attestation.js`](https://github.com/goatgaucho/trust-layer/blob/main/verify-attestation.js).
+
+**Coverage:** 19 chains — Arbitrum, Avalanche, Base, BSC, Celo, Ethereum, Gnosis, GOAT, Linea, Mantle, Metis, Monad, Optimism, Polygon, Scroll, Soneium, Solana, Taiko, xLayer. 1,468 cross-chain identity groups indexed.
+
+**Signed payload fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `wallet` | string | The queried wallet address (EVM `0x…` or Solana base58). Inside signature scope — this is the wallet-binding field. |
+| `agent_id` | string | `{chain}:{registry_id}` of the resolved agent (e.g. `ethereum:29057`). |
+| `identity_group_id` | string \| null | Cross-chain group identifier (e.g. `owner_790`). `null` when the wallet's agent is not yet clustered into a group. |
+| `linked_addresses_count` | number | Number of addresses in the wallet's identity group across all indexed chains. `1` when the wallet is unclustered. |
+| `chains_present` | array | Chain identifiers where the identity group has presence. |
+| `score` | number | Cross-chain reputation score (0–100). |
+| `sybil_flags` | array | Detected sybil indicators (empty when none). |
+| `match_method` | string \| null | How the agent was resolved (e.g. `owner_wallet`). |
+| `match_confidence` | number \| null | Resolution confidence (0.0–1.0). |
+| `scored_at` | string | ISO 8601 — when the score was computed (background pipeline). |
+| `attested_at` | string | ISO 8601 — request time. |
+
+**Unknown wallets** return a signed envelope with `identity_group_id: null`, `linked_addresses_count: 1`, and a chain-specific `agent_id` — the dimension stays queryable even when the wallet isn't in a cross-chain group. **Wallets with no agent in any indexed registry** return `{wallet, found: false, note}` (200, no envelope).
+
+**Signature:** Base64url-encoded P1363 (`r || s`, 64 bytes) over the **canonical (sorted-key) JSON serialization** of `signed`. The reference verifier (`multi-attest-verify.js`) accepts both insertion-order and canonical JSON for ES256 raw, so TrustLayer's canonical form verifies under the standard ES256 raw path.
+
+**Wallet-binding category**: wallet-bound — the `wallet` field is inside signature scope.
+
+
 ---
 
 ## 4. Verification Algorithm
@@ -720,8 +771,8 @@ For each attestation entry in `attestations[]`:
 4. **Verify the signature.**
 
    **Raw signature path** (P1363 / raw bytes):
-   - Decode `sig` from base64 to bytes.
-   - Compute the signing input: `JSON.stringify(signed)` encoded as UTF-8.
+   - Decode `sig` from base64 (or base64url) to bytes.
+   - Compute the signing input: `JSON.stringify(signed)` encoded as UTF-8. If verification fails, retry with the canonical sorted-key JSON serialization of `signed` — some issuers sign the canonical form (e.g., TrustLayer ES256, RNWY-pattern EdDSA). The reference verifier accepts both forms for both ES256 raw and EdDSA raw.
    - For ES256: convert P1363 format (`r || s`, 64 bytes) to DER, then verify with SHA-256 and the P-256 public key.
    - For EdDSA: verify the raw signature bytes directly against the signing input using the Ed25519 public key (no hash — Ed25519 hashes internally).
 
@@ -825,10 +876,11 @@ The verifier:
 | AgentID | `https://getagentid.dev/.well-known/jwks.json` |
 | AgentGraph | `https://agentgraph.co/.well-known/jwks.json` |
 | SAR | `https://defaultverifier.com/.well-known/jwks.json` |
+| TrustLayer | `https://api.thetrustlayer.xyz/.well-known/jwks.json` |
 
 ## Appendix B: Algorithm Support Matrix
 
 | Algorithm | Curve | Issuers | Signature Encoding |
 |-----------|-------|---------|-------------------|
-| ES256 | P-256 | InsumerAPI, RNWY (behavioral_trust + wallet_intelligence), Maiat, Revettr | P1363 base64 or JWT |
+| ES256 | P-256 | InsumerAPI, RNWY (behavioral_trust + wallet_intelligence), Maiat, Revettr, TrustLayer | P1363 base64/base64url or JWT |
 | EdDSA | Ed25519 | ThoughtProof, APS, AgentID, AgentGraph, SAR | JWT |

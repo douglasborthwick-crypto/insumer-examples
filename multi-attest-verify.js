@@ -6,7 +6,7 @@
  * The verifier fetches each issuer's public key and checks the signature independently.
  *
  * Supported algorithms:
- *   - ES256 (ECDSA P-256) — InsumerAPI, RNWY, Maiat, Revettr
+ *   - ES256 (ECDSA P-256) — InsumerAPI, RNWY, Maiat, Revettr, TrustLayer
  *   - EdDSA (Ed25519) — ThoughtProof, APS, AgentID, AgentGraph, SAR
  *
  * No dependencies — uses Node.js built-in crypto and https modules.
@@ -186,9 +186,16 @@ async function verifySignature(attestation) {
     const sigBuffer = base64urlDecode(sig);
 
     if (alg === "ES256") {
-      const message = JSON.stringify(signed);
+      // Try insertion-order JSON first, then canonical (sorted keys) for
+      // issuers that sign with sorted-key recursive JSON (e.g., TrustLayer).
+      // Mirrors the EdDSA dual-mode below.
       const derSig = p1363ToDer(sigBuffer, 32);
-      const ok = crypto.verify("SHA256", Buffer.from(message), publicKey, derSig);
+      const message = JSON.stringify(signed);
+      let ok = crypto.verify("SHA256", Buffer.from(message), publicKey, derSig);
+      if (!ok) {
+        const canonical = canonicalJSON(signed);
+        ok = crypto.verify("SHA256", Buffer.from(canonical), publicKey, derSig);
+      }
       return { valid: ok, error: ok ? null : "ES256 signature invalid" };
     } else if (alg === "EdDSA") {
       // Try insertion-order JSON first, then canonical (sorted keys) for
@@ -328,8 +335,8 @@ async function main() {
   console.log("=".repeat(60));
   console.log("");
 
-  // Fetch live attestations from all nine issuers
-  console.log("Fetching live attestations from all nine issuers...\n");
+  // Fetch live attestations from all ten issuers
+  console.log("Fetching live attestations from all ten issuers...\n");
 
   // 1. InsumerAPI — requires API key
   const INSUMER_KEY = process.env.INSUMER_API_KEY;
@@ -674,6 +681,26 @@ async function main() {
     console.log("[-] Revettr: " + e.message);
   }
 
+  // 10. TrustLayer — public, no API key, wallet-bound endpoint
+  let trustlayerAttestation;
+  try {
+    const tl = await fetchJSON(
+      "https://api.thetrustlayer.xyz/attest/wallet/0xda977767452c5dd021624511f14df67b6c9c2c1b"
+    );
+    if (tl.signed && tl.sig) {
+      trustlayerAttestation = tl;
+      console.log(
+        "[+] TrustLayer: fetched (score: " + tl.signed.score +
+        ", chains: " + (tl.signed.chains_present ? tl.signed.chains_present.length : 0) +
+        ", group: " + tl.signed.identity_group_id + ")"
+      );
+    } else {
+      console.log("[-] TrustLayer: unexpected response format");
+    }
+  } catch (e) {
+    console.log("[-] TrustLayer: " + e.message);
+  }
+
   // Build multi-attestation payload from available attestations
   const attestations = [];
   if (insumerAttestation) attestations.push(insumerAttestation);
@@ -685,6 +712,7 @@ async function main() {
   if (agentgraphAttestation) attestations.push(agentgraphAttestation);
   if (sarAttestation) attestations.push(sarAttestation);
   if (revettrAttestation) attestations.push(revettrAttestation);
+  if (trustlayerAttestation) attestations.push(trustlayerAttestation);
 
   if (attestations.length === 0) {
     console.log("\nNo live attestations available to verify.");
