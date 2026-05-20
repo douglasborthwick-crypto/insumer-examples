@@ -729,7 +729,7 @@ curl https://api.thetrustlayer.xyz/attest/wallet/{wallet}
 curl "https://api.thetrustlayer.xyz/attest/wallet/{wallet}?chain=base"
 ```
 
-Reference verifier: [`goatgaucho/trust-layer/verify-attestation.js`](https://github.com/goatgaucho/trust-layer/blob/main/verify-attestation.js).
+Reference verifier: [`goatgaucho/trustlayer-middleware-express/verify-attestation.js`](https://github.com/goatgaucho/trustlayer-middleware-express/blob/main/verify-attestation.js).
 
 **Coverage:** 19 chains — Arbitrum, Avalanche, Base, BSC, Celo, Ethereum, Gnosis, GOAT, Linea, Mantle, Metis, Monad, Optimism, Polygon, Scroll, Soneium, Solana, Taiko, xLayer. 1,468 cross-chain identity groups indexed.
 
