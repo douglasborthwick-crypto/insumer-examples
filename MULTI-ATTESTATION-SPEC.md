@@ -116,6 +116,7 @@ An analytical split across the envelope worth naming because it clarifies how co
 | Identity verification | AgentID v1.1.0 | `bound_addresses`, `solana_address`, `wallet_address` |
 | Passport grade (governance) | APS `gateway-v1` | `wallet_ref[].address` (envelope JWS, gateway key) + `wallet_ref[].binding_sig` (per-entry, passport pubkey) |
 | Settlement witness (new receipts) | SAR `sar-prod-ed25519-03` | `counterparty` |
+| Reasoning integrity (wallet-indexed) | ThoughtProof `tp-attestor-v1` | `wallet` (via `/v1/issuer/wallet/{wallet}`) |
 | Cross-chain reputation | TrustLayer `trustlayer-signing-1` | `wallet` |
 
 **APS has a two-layer binding model worth naming.** The `wallet_ref[]` array is inside the envelope-level Ed25519 JWS signed by the `gateway-v1` key, which proves "the APS gateway attested that this agent has these bound wallets at the named `bound_at` timestamps." Each entry additionally carries a per-wallet `binding_sig` — a separate Ed25519 signature over the canonical binding payload `{passport_id, chain, address, bound_at}` (via the reference `canonicalize()` algorithm), signed by the passport's own private key. The per-wallet signature verifies against the passport pubkey (published in a fixture for the canonical `aeoess-bound-demo` test passport, and in the passport object itself for production passports). Both layers verify offline and compose: the gateway layer says "our infrastructure observed this binding," and the passport layer says "the passport holder cryptographically claimed this binding themselves." Consumers can require either or both layers depending on their trust model.
@@ -128,7 +129,7 @@ An analytical split across the envelope worth naming because it clarifies how co
 
 As of the 2026-04-10 SAR kid rotation to `sar-prod-ed25519-03`, the `counterparty` field is now inside signed bytes for new receipts, moving `settlement_witness` into the wallet-bound category for post-upgrade receipts. Legacy receipts signed under kid `-02` or `-01` remain wallet-discoverable via the `/settlement-witness/receipts?wallet={address}` transport lookup.
 
-**Not wallet-binding by design.** ThoughtProof commits to a `claim_hash` (SHA-256 of a natural-language reasoning claim). The wallet does not appear in the signed bytes. That is consistent with its attestation surface — it attests to the soundness of a reasoning chain, which is a property of the action, not the actor.
+**ThoughtProof ships both shapes.** Its original `reasoning_integrity` verdict (`POST /v1/verify`, `/v1/check`) commits to a `claim_hash` (SHA-256 of a natural-language reasoning claim); the wallet does not appear in those signed bytes, which is correct for attesting the soundness of a reasoning chain — a property of the action, not the actor. As of 2026-04-11, ThoughtProof also ships a wallet-indexed variant at `GET /v1/issuer/wallet/{wallet}` (no API key) returning a `wallet_reasoning_integrity/v1` envelope with the wallet inside the signed bytes alongside `verdict`, `score_normalized`, `confidence_bps`, and supporting evidence. `NOT_FOUND` envelopes are signed too, so consumers get a verifiable answer either way. That endpoint moves the reasoning-integrity signal into the wallet-bound category for wallet-indexed lookups — hence its row in the wallet-bound table above. See §3.2 for the wallet-indexed schema.
 
 ---
 
@@ -229,6 +230,27 @@ Docs: [thoughtproof.ai/api](https://thoughtproof.ai/api)
 | `timestamp` | string | ISO 8601 timestamp. |
 
 **Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
+
+**Wallet-indexed variant (shipped 2026-04-11, no API key):**
+
+```bash
+curl https://api.thoughtproof.ai/v1/issuer/wallet/0x0000000000000000000000000000000000001004
+```
+
+Returns a `wallet_reasoning_integrity/v1` envelope that puts the queried wallet inside the signed bytes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `wallet` | string | The queried wallet — inside signature scope. |
+| `found` | boolean | Whether ThoughtProof holds a reasoning receipt for this wallet. `NOT_FOUND` envelopes are signed too. |
+| `verdict` | string | `VERIFIED` / `NOT_FOUND`. |
+| `score_normalized` | number | Normalized reasoning-integrity score (0–1). |
+| `confidence_bps` | number | Confidence in basis points. |
+| `evidence` | object | Supporting attestation evidence (counts, latest attestation hash). |
+| `issuedAt` / `expiresAt` | string | ISO 8601 validity window. |
+| `signature` | object | `{ alg, kid, value }` — detached EdDSA. |
+
+**Signature (wallet-indexed):** Detached EdDSA over the recursively sorted-key compact JSON of the payload (every field except `signature`) — i.e. `json.dumps(payload, sort_keys=True, separators=(",", ":"))`. `signature.value` is base64url. This is the wallet-bound surface referenced in §2's wallet-bound table.
 
 
 ### 3.3 RNWY — `behavioral_trust`

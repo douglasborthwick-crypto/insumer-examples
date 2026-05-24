@@ -179,46 +179,34 @@ async function fetchRNWYWallet(chainContext) {
 }
 
 /**
- * 3. ThoughtProof — reasoning_integrity.
- * Uses wallet in claim context. Requires THOUGHTPROOF_API_KEY.
+ * 3. ThoughtProof — reasoning_integrity (wallet-bound issuer lookup).
+ * Apr 11 2026: ThoughtProof shipped GET /v1/issuer/wallet/{wallet}, returning a
+ * wallet_reasoning_integrity/v1 envelope with the wallet inside the signed bytes
+ * (verdict, score, supporting evidence). The signature is detached EdDSA over the
+ * recursively sorted-key compact JSON of the payload (everything except the
+ * `signature` object). NOT_FOUND envelopes are signed too, so consumers get a
+ * verifiable answer either way. No API key required.
  */
 async function fetchThoughtProof(chainContext) {
-  const apiKey = process.env.THOUGHTPROOF_API_KEY;
-  if (!apiKey) throw new Error("THOUGHTPROOF_API_KEY not set");
-
-  // Resolve agentId: prefer THOUGHTPROOF_AGENT_ID env, otherwise auto-discover
-  // the first registered agent under this operator via GET /v1/agents.
-  var agentId = process.env.THOUGHTPROOF_AGENT_ID;
-  if (!agentId) {
-    var agentsList = await fetchJSON("https://api.thoughtproof.ai/v1/agents", {
-      method: "GET",
-      headers: { "X-API-Key": apiKey }
-    });
-    if (!agentsList || !Array.isArray(agentsList.agents) || agentsList.agents.length === 0) {
-      throw new Error("No agents registered under this operator — POST /v1/agents to create one first");
-    }
-    agentId = agentsList.agents[0].agentId;
+  var wallet = chainContext.wallet;
+  if (!wallet) throw new Error("ThoughtProof wallet lookup requires a wallet address");
+  var data = await fetchJSON(
+    "https://api.thoughtproof.ai/v1/issuer/wallet/" + encodeURIComponent(wallet)
+  );
+  if (!data.signature || !data.signature.value) {
+    throw new Error("No signature in ThoughtProof response");
   }
-
-  const data = await fetchJSON("https://api.thoughtproof.ai/v1/verify", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
-    body: JSON.stringify({
-      agentId: agentId,
-      claim: "Wallet " + chainContext.wallet.slice(0, 10) + "... holds sufficient assets for transaction",
-      verdict: "VERIFIED",
-      domain: "financial"
-    })
-  });
-  if (!data.jwt) throw new Error(data.error || "No JWT returned");
+  // The detached signature covers the payload minus the `signature` object.
+  var signed = Object.assign({}, data);
+  delete signed.signature;
   return {
     issuer: "https://api.thoughtproof.ai",
     type: "reasoning_integrity",
-    kid: "tp-attestor-v1",
-    alg: "EdDSA",
+    kid: data.signature.kid || "tp-attestor-v1",
+    alg: data.signature.alg || "EdDSA",
     jwks: "https://api.thoughtproof.ai/.well-known/jwks.json",
-    signed: null,
-    sig: data.jwt,
+    signed: signed,
+    sig: data.signature.value,
     expiry: data.expiresAt
   };
 }
