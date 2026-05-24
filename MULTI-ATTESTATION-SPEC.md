@@ -12,7 +12,7 @@
 
 The Multi-Attestation Payload Format defines a composable envelope for bundling independently signed attestations from multiple issuers into a single verifiable object. Each attestation is self-describing — it carries its own algorithm, key identifier, and JWKS discovery endpoint. No shared registry or coordination between issuers is required. A relying party selects attestations by `type`, fetches each issuer's public key via standard JWKS, and verifies signatures independently.
 
-This format emerged from convergence across ten independent issuers contributing eleven signed dimensions: InsumerAPI (wallet state — the foundation layer, 37 chains), Revettr (compliance risk), ThoughtProof (reasoning integrity), RNWY (two dimensions — agent-level behavioral trust AND operator-level wallet intelligence), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), SAR (settlement witness), and TrustLayer (cross-chain reputation, 19 chains). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
+This format emerged from convergence across ten independent issuers contributing twelve signed dimensions: InsumerAPI (wallet state — the foundation layer, 37 chains), Revettr (compliance risk), ThoughtProof (reasoning integrity), RNWY (three dimensions — agent-level behavioral trust, operator-level wallet intelligence, AND MCP-server trust), Maiat (job performance), APS (passport grade), AgentID (trust verification), AgentGraph (security posture), SAR (settlement witness), and TrustLayer (cross-chain reputation, 19 chains). Each issuer publishes a JWKS endpoint and signs attestations using either ES256 or EdDSA. The payload format is algorithm-agnostic and supports both raw signatures (base64-encoded P1363) and compact JWS (JWT).
 
 ---
 
@@ -89,8 +89,9 @@ Schema reservations, aspirational commitments, or proposed attestation dimension
 | `wallet_state` | InsumerAPI | ES256 | base64 P1363 (or JWT when `format: "jwt"` requested) | 30 min |
 | `compliance_risk` | Revettr | ES256 | compact JWS (JWT) | 1 hour |
 | `reasoning_integrity` | ThoughtProof | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
-| `behavioral_trust` | RNWY | ES256 | base64 P1363 (kid `rnwy-trust-v2`, legacy `rnwy-trust-v1`) | 24 hours |
+| `behavioral_trust` | RNWY | ES256 | base64 P1363 + compact JWS (kid `rnwy-trust-v2`, legacy `rnwy-trust-v1`) | 24 hours |
 | `wallet_intelligence` | RNWY | ES256 | compact JWS (JWT, kid `rnwy-wallet-v1`) | 24 hours |
+| `mcp_trust` | RNWY | ES256 | compact JWS (JWT, kid `rnwy-mcp-v1`) | 24 hours |
 | `job_performance` | Maiat | ES256 | compact JWS (JWT) | 30 min |
 | `passport_grade` | APS | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
 | `trust_verification` | AgentID | EdDSA (Ed25519) | compact JWS (JWT) | 1 hour |
@@ -126,10 +127,13 @@ An analytical split across the envelope worth naming because it clarifies how co
 | Dimension | Provider | Signed subject |
 |---|---|---|
 | Security posture | AgentGraph | `github:owner/repo` |
+| MCP-server trust | RNWY (`rnwy-mcp-v1`) | `server` (`{owner}/{repo}`) |
 
 As of the 2026-04-10 SAR kid rotation to `sar-prod-ed25519-03`, the `counterparty` field is now inside signed bytes for new receipts, moving `settlement_witness` into the wallet-bound category for post-upgrade receipts. Legacy receipts signed under kid `-02` or `-01` remain wallet-discoverable via the `/settlement-witness/receipts?wallet={address}` transport lookup.
 
 **ThoughtProof ships both shapes.** Its original `reasoning_integrity` verdict (`POST /v1/verify`, `/v1/check`) commits to a `claim_hash` (SHA-256 of a natural-language reasoning claim); the wallet does not appear in those signed bytes, which is correct for attesting the soundness of a reasoning chain — a property of the action, not the actor. As of 2026-04-11, ThoughtProof also ships a wallet-indexed variant at `GET /v1/issuer/wallet/{wallet}` (no API key) returning a `wallet_reasoning_integrity/v1` envelope with the wallet inside the signed bytes alongside `verdict`, `score_normalized`, `confidence_bps`, and supporting evidence. `NOT_FOUND` envelopes are signed too, so consumers get a verifiable answer either way. That endpoint moves the reasoning-integrity signal into the wallet-bound category for wallet-indexed lookups — hence its row in the wallet-bound table above. See §3.2 for the wallet-indexed schema.
+
+**RNWY's MCP-server trust is server-subject.** As of 2026-05-24, RNWY signs a third dimension at `GET /api/mcp-attestation?server={owner}/{repo}` (kid `rnwy-mcp-v1`, ES256 compact JWS), scoring an MCP server's quality and risk. The signed subject is the `server` identifier (`{owner}/{repo}`), not a wallet — there is no wallet entry point on this endpoint, so it is wallet-discoverable/entity-subject like AgentGraph, and is not orchestrated by wallet-keyed consumers. See §3.12 for the schema.
 
 ---
 
@@ -137,7 +141,7 @@ As of the 2026-04-10 SAR kid rotation to `sar-prod-ed25519-03`, the `counterpart
 
 ### 3.1 InsumerAPI — `wallet_state` (foundation layer)
 
-**InsumerAPI is the foundation layer.** It reads wallet state across 37 chains (31 EVM + Solana + XRPL + Bitcoin + Tron + Stellar + Sui) and establishes the chain context every other dimension composes on top of. The other nine dimensions answer specialized questions; the foundation answers "what does this wallet actually hold and do on-chain."
+**InsumerAPI is the foundation layer.** It reads wallet state across 37 chains (31 EVM + Solana + XRPL + Bitcoin + Tron + Stellar + Sui) and establishes the chain context every other dimension composes on top of. The other eleven dimensions answer specialized questions; the foundation answers "what does this wallet actually hold and do on-chain."
 
 Privacy-preserving on-chain verification. Returns signed booleans. No balances exposed.
 
@@ -291,7 +295,7 @@ Docs: [rnwy.com/api](https://rnwy.com/api)
 | `sybilSignals` | array | Specific sybil indicators: `sweep_pattern`, `inhuman_velocity`, `score_clustering`, `coordination`, `common_funder`. |
 | `attestedAt` | string | ISO 8601 attestation timestamp. |
 
-**Signature:** Base64-encoded P1363 (`r || s`, 64 bytes) over `JSON.stringify(signed)`.
+**Signature:** Base64-encoded P1363 (`r || s`, 64 bytes) over `JSON.stringify(signed)`. As of 2026-05-24, the trust-check endpoint **additionally** returns a standard compact JWS in a `jws` field alongside the raw `sig` (both over the same `rnwy-trust-v2` payload), so a standard JOSE library verifies out of the box; the raw `sig` remains for backward compatibility.
 
 #### 3.3.0 `rnwy-trust-v2` — upgraded signed payload (current)
 
@@ -778,6 +782,42 @@ Reference verifier: [`goatgaucho/trustlayer-middleware-express/verify-attestatio
 **Wallet-binding category**: wallet-bound — the `wallet` field is inside signature scope.
 
 
+### 3.12 RNWY MCP Trust — `mcp_trust`
+
+MCP-server quality and risk scoring. Answers "how capable and how risky is this MCP server" — tenure, adoption, capability surface, and reliability rolled into a quality score, with an independent risk score. The signed subject is the server (`{owner}/{repo}`), not a wallet: this dimension attests to a server, not an actor, so it is wallet-discoverable/entity-subject (like AgentGraph) rather than wallet-bound. Keyless (no API key required).
+
+| Property | Value |
+|----------|-------|
+| Issuer URI | `https://rnwy.com` |
+| Algorithm | ES256 (ECDSA P-256) |
+| Key ID | `rnwy-mcp-v1` |
+| JWKS | `https://rnwy.com/.well-known/jwks.json` |
+| Default TTL | 24 hours |
+
+**Getting started:** No API key required. The query is server-scoped (`{owner}/{repo}`) — there is no wallet entry point.
+
+```bash
+curl "https://rnwy.com/api/mcp-attestation?server={owner}/{repo}"
+```
+
+**Signature:** Compact JWS (JWT) with ES256 (P-256), in the `jws` field; a raw `sig` over `JSON.stringify(signed)` is returned alongside for backward compatibility.
+
+**Signed payload fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `server` | string | The attested MCP server, `{owner}/{repo}`. Signed subject. |
+| `qualityScore` | number | Composite quality (0–100) from tenure, adoption, capability, reliability. |
+| `riskScore` | number | Risk score; lower is cleaner. Independent from `qualityScore`. |
+| `quadrant` | string | e.g. `low_quality_low_risk`, `high_quality_low_risk`. |
+| `breakdown` | object | Per-component scoring detail (`quality`, `risk`, `version`, `quadrant`). |
+| `issuedAt` | string | ISO 8601 scan timestamp. |
+| `verifiedAt` | string | ISO 8601 attestation timestamp. |
+| `expiry` | string | ISO 8601 expiry (`verifiedAt` + 24h). |
+
+**Wallet-binding category**: wallet-discoverable / entity-subject — the signed subject is the server, not a wallet.
+
+
 ---
 
 ## 4. Verification Algorithm
@@ -904,5 +944,5 @@ The verifier:
 
 | Algorithm | Curve | Issuers | Signature Encoding |
 |-----------|-------|---------|-------------------|
-| ES256 | P-256 | InsumerAPI, RNWY (behavioral_trust + wallet_intelligence), Maiat, Revettr, TrustLayer | P1363 base64/base64url or JWT |
+| ES256 | P-256 | InsumerAPI, RNWY (behavioral_trust + wallet_intelligence + mcp_trust), Maiat, Revettr, TrustLayer | P1363 base64/base64url or JWT |
 | EdDSA | Ed25519 | ThoughtProof, APS, AgentID, AgentGraph, SAR | JWT |

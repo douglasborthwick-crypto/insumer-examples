@@ -200,7 +200,7 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 
 ## Multi-Attestation Verification
 
-Before an AI agent transacts, a relying party can verify eleven signed dimensions across ten independent issuers in a single pass:
+Before an AI agent transacts, a relying party can verify twelve signed dimensions across ten independent issuers in a single pass:
 
 | Dimension | Question | Issuer | Algorithm |
 |-----------|----------|--------|-----------|
@@ -209,6 +209,7 @@ Before an AI agent transacts, a relying party can verify eleven signed dimension
 | **Reasoning Integrity** | "Did this agent reason correctly?" | [ThoughtProof](https://thoughtproof.ai) | EdDSA |
 | **Behavioral Trust** | "Is this agent legitimate?" | [RNWY](https://rnwy.com) (150K+ agents, dual-score) | ES256 |
 | **Wallet Intelligence** | "What does RNWY know about the operator wallet itself?" | [RNWY](https://rnwy.com) (`rnwy-wallet-v1`, signalDepth + riskIntensity quadrant) | ES256 |
+| **MCP-Server Trust** | "Is this MCP server capable and low-risk?" | [RNWY](https://rnwy.com) (`rnwy-mcp-v1`, quality + risk quadrant; server-subject) | ES256 |
 | **Job Performance** | "Has this agent delivered before?" | [Maiat](https://app.maiat.io) | ES256 |
 | **Passport Grade** | "How deeply is this agent's identity verified?" | [APS](https://github.com/aeoess/agent-passport-system) | EdDSA |
 | **Trust Verification** | "How reliable is this agent's behavior?" | [AgentID](https://getagentid.dev) | EdDSA |
