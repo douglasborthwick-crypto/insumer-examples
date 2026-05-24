@@ -145,7 +145,65 @@ async function verifyJWKS() {
     "   Combined format: github.com/douglasborthwick-crypto/insumer-examples/issues/1\n"
   );
 
+  console.log("Done ✅\n");
+}
+
+// --- Live wallet-bound verification (shipped 2026-04-11, no API key) ---
+
+/**
+ * Recursive sorted-key compact JSON — matches Python
+ * json.dumps(obj, sort_keys=True, separators=(",", ":")), which is what
+ * ThoughtProof signs over for the wallet-indexed envelope.
+ */
+function canonicalJSON(obj) {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return "[" + obj.map(canonicalJSON).join(",") + "]";
+  return (
+    "{" +
+    Object.keys(obj)
+      .sort()
+      .map((k) => JSON.stringify(k) + ":" + canonicalJSON(obj[k]))
+      .join(",") +
+    "}"
+  );
+}
+
+/**
+ * The reasoning_integrity signal is also available wallet-bound:
+ * GET /v1/issuer/wallet/{wallet} returns a wallet_reasoning_integrity/v1
+ * envelope with the wallet inside the signed bytes, signed with a detached
+ * EdDSA signature (no API key needed). This verifies it live.
+ */
+async function verifyWalletBound() {
+  console.log("5. Wallet-bound lookup (GET /v1/issuer/wallet/{wallet}, no key):\n");
+
+  const demoWallet = "0x0000000000000000000000000000000000001004";
+  const env = await fetchJSON(
+    "https://api.thoughtproof.ai/v1/issuer/wallet/" + demoWallet
+  );
+
+  console.log(`   wallet:  ${env.wallet}`);
+  console.log(`   found:   ${env.found}`);
+  console.log(`   verdict: ${env.verdict}`);
+  console.log(`   kid:     ${env.signature.kid}\n`);
+
+  const jwks = await fetchJSON(
+    "https://api.thoughtproof.ai/.well-known/jwks.json"
+  );
+  const key = jwks.keys.find((k) => k.kid === env.signature.kid);
+  const publicKey = crypto.createPublicKey({ key, format: "jwk" });
+
+  // The detached signature covers the payload minus the `signature` object.
+  const { signature, ...payload } = env;
+  const message = Buffer.from(canonicalJSON(payload));
+  const sig = Buffer.from(signature.value, "base64url");
+
+  const ok = crypto.verify(null, message, publicKey, sig);
+  console.log(
+    `   ${ok ? "✅" : "❌"} EdDSA signature ${ok ? "verified" : "INVALID"} — the wallet is in the signed bytes\n`
+  );
+
   console.log("Done ✅");
 }
 
-verifyJWKS().catch(console.error);
+verifyJWKS().then(verifyWalletBound).catch(console.error);

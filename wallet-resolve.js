@@ -558,6 +558,28 @@ async function fetchRevettr(chainContext) {
 // ─── Orchestrator ────────────────────────────────────────────────
 
 /**
+ * True when the queried wallet appears inside the attestation's signed bytes
+ * (the wallet-bound test). Covers raw-signature providers (wallet in
+ * `att.signed`) and JWT / compact-JWS providers (wallet in the JWT payload).
+ * AgentGraph signs a repo subject, and demo-fallback responses sign a demo
+ * identifier — both correctly return false here.
+ */
+function walletInSignedBytes(att, wallet) {
+  if (!att || !wallet) return false;
+  var w = String(wallet).toLowerCase();
+  if (att.signed && typeof att.signed === "object") {
+    if (JSON.stringify(att.signed).toLowerCase().indexOf(w) !== -1) return true;
+  }
+  if (typeof att.sig === "string" && att.sig.split(".").length === 3) {
+    try {
+      var payload = Buffer.from(att.sig.split(".")[1], "base64").toString("utf8");
+      if (payload.toLowerCase().indexOf(w) !== -1) return true;
+    } catch (e) { /* not a decodable JWT */ }
+  }
+  return false;
+}
+
+/**
  * Resolve a wallet address into a multi-attestation envelope.
  *
  * Step 1: InsumerAPI reads the wallet (foundation layer)
@@ -616,6 +638,13 @@ async function resolveWallet(opts) {
     if (result.status === "fulfilled") {
       attestations.push(result.value);
       console.log("[+] " + providers[i].name + ": ok");
+      // Credit as wallet-resolved when the queried wallet is in the signed
+      // bytes, or (APS) when its per-wallet binding_sig verifies. Demo-fallback
+      // and repo-subject (AgentGraph) responses correctly fail both tests.
+      var sb = result.value._strictWalletBinding;
+      if (walletInSignedBytes(result.value, wallet) || (sb && sb.verified === "pass")) {
+        walletResolved.push(providers[i].name);
+      }
       // Surface APS strict wallet_ref binding_sig verification result inline
       if (providers[i].name === "APS" && result.value._strictWalletBinding) {
         var strict = result.value._strictWalletBinding;
@@ -645,15 +674,6 @@ async function resolveWallet(opts) {
     }
   }
 
-  // Track which providers resolved from the actual wallet vs demo IDs
-  // AgentID resolves from Solana wallet when available
-  if (solanaWallet || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet)) {
-    walletResolved.push("AgentID");
-  }
-  if (/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
-    walletResolved.push("Maiat");
-    walletResolved.push("Revettr");
-  }
 
   return {
     version: "1",

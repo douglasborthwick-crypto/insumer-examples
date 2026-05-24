@@ -239,7 +239,7 @@ Post your JWKS URL + sample JWT on [issues/1](https://github.com/douglasborthwic
 |------|-------------|
 | [wallet-resolve.js](wallet-resolve.js) | Multi-attestation fetcher — calls InsumerAPI first (wallet-state foundation layer), then fans out to all configured providers in parallel; outputs a standard multi-attestation envelope compatible with `multi-attest-verify.js` |
 | [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 10 signed dimensions across 9 independent issuers (ES256 + EdDSA) |
-| [thoughtproof-verify-example.js](thoughtproof-verify-example.js) | ThoughtProof attestation walkthrough — JWKS fetch, EdDSA key import |
+| [thoughtproof-verify-example.js](thoughtproof-verify-example.js) | ThoughtProof attestation walkthrough — JWKS fetch, EdDSA key import, live wallet-bound signature verification (`/v1/issuer/wallet/{wallet}`) |
 | [x402-sar-integration.js](x402-sar-integration.js) | x402 SAR integration — attestation → payment → delivery proof → offline verification |
 | [x402-sar-integration-settlementwitness.js](x402-sar-integration-settlementwitness.js) | SettlementWitness SAR integration — live endpoint, Ed25519 verification ([nutstrut](https://github.com/nutstrut)) |
 
