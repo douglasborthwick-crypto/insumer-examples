@@ -200,7 +200,7 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 
 ## Multi-Attestation Verification
 
-Before an AI agent transacts, a relying party can verify ten signed dimensions across nine independent issuers in a single pass:
+Before an AI agent transacts, a relying party can verify eleven signed dimensions across ten independent issuers in a single pass:
 
 | Dimension | Question | Issuer | Algorithm |
 |-----------|----------|--------|-----------|
@@ -214,12 +214,13 @@ Before an AI agent transacts, a relying party can verify ten signed dimensions a
 | **Trust Verification** | "How reliable is this agent's behavior?" | [AgentID](https://getagentid.dev) | EdDSA |
 | **Security Posture** | "Is this agent's code secure?" | [AgentGraph](https://agentgraph.co) | EdDSA |
 | **Settlement Witness** | "Was the task actually delivered?" | [SAR](https://defaultverifier.com) | EdDSA |
+| **Cross-Chain Reputation** | "How many addresses across how many chains, and what's the consolidated reputation?" | [TrustLayer](https://api.thetrustlayer.xyz) (19 chains, 1,468 identity groups) | ES256 |
 
 Each attestation is independently signed and verifiable offline via JWKS. No shared keys, no shared infrastructure.
 
-### Add Your Attestation (Issuer #10+)
+### Add Your Attestation (Issuer #11+)
 
-The envelope is open. If you sign a distinct dimension of agent or wallet trust, you can join the verification pass. Nine issuers live today; the reference verifier loads any number.
+The envelope is open. If you sign a distinct dimension of agent or wallet trust, you can join the verification pass. Ten issuers live today; the reference verifier loads any number.
 
 **Checklist (Harold/AgentID pattern, verified in ~30 min):**
 
