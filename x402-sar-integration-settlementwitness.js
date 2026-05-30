@@ -3,9 +3,9 @@
  *
  * End-to-end flow: attestation → payment → SAR receipt → offline verification
  *
- * This version keeps Douglas's structure, but replaces:
- * - Step 3 with a real SettlementWitness call
- * - Step 4c with real SAR verification against the live key registry
+ * This variant performs:
+ * - Step 3: a live SettlementWitness call
+ * - Step 4c: SAR receipt verification against the live key registry
  *
  * Usage:
  *   npm install insumer-verify jose canonicalize @noble/ed25519 @noble/hashes
