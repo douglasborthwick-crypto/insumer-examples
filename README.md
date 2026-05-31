@@ -274,16 +274,23 @@ Six conditions, three chains, every agent in the room, all must pass. But this i
 Dynamic enforcement — lose a credential, get ejected on re-verify. Creator can kick. Agents can leave.
 
 ```bash
-node agenttalk-example.js                # bilateral (2 agents)
-node agenttalk-example.js multiparty     # multi-party (3 agents, kick, leave)
+node agenttalk-example.js                          # bilateral (2 agents)
+node agenttalk-example.js multiparty               # multi-party (3 agents, kick, leave)
+DEMO_PRIVATE_KEY=0x... node agenttalk-example.js   # gate on a wallet you fund (real PASS)
 ```
 
+By default the example generates fresh, throwaway keypairs and signs with them —
+so it proves control end-to-end but the attestation honestly returns `pass:false`
+(an empty wallet holds no USDC). Set `DEMO_PRIVATE_KEY` to a wallet you control
+and fund to see a real PASS; the key is read only at runtime and never committed.
+
 The flow:
+0. **Prove control** — Before declaring or joining, each agent signs a one-time challenge with its wallet key. Holdings are public, so naming a wallet isn't enough — control of it is what grants entry.
 1. **Declare** — Creator opens a channel with conditions + capacity. `autoStart: true` makes it live immediately.
-2. **Join** — Agents submit wallets. Each is attested on entry via InsumerAPI.
+2. **Join** — Agents prove control of their wallets and submit them. Each is attested on entry via InsumerAPI.
 3. **Attest** — Every wallet verified — each agent gets an ECDSA-signed JWT.
 4. **Session** — `sessionId` + `conditionsHash` bind all attestations together.
-5. **Enforce** — Re-verify ejects agents who lose credentials. Creator can kick (`/kick`). Agents can leave (`/leave`).
+5. **Enforce** — Re-verify ejects agents who lose credentials. Creator can kick (`/kick`). Agents can leave (`/leave`) — each signed by the acting wallet.
 
 **Built for regulated industries:**
 - **Finance & Banking** — syndication rooms, counterparty qualification, collateral verification before term sheets
@@ -293,7 +300,7 @@ The flow:
 
 | File | Description |
 |------|-------------|
-| [agenttalk-example.js](agenttalk-example.js) | Bilateral + multi-party flows: declare → join → verify → kick → leave |
+| [agenttalk-example.js](agenttalk-example.js) | Bilateral + multi-party flows: prove control → declare → join → verify → kick → leave |
 
 AgentTalk is a [SkyeMeta](https://skyemeta.com) product, powered by InsumerAPI. | API: `https://skyemeta.com/api/agenttalk/` | Docs: [skyemeta.com/agenttalk](https://skyemeta.com/agenttalk/)
 

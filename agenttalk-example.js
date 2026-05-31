@@ -4,33 +4,62 @@
  * Demonstrates both AgentTalk flows:
  *
  *   Bilateral (default):
- *     1. Agent A declares a channel with conditions (capacity 2)
- *     2. Agent B joins — both wallets attested via InsumerAPI
+ *     1. Agent A proves control of its wallet, then declares a channel (capacity 2)
+ *     2. Agent B proves control, then joins — both wallets attested via InsumerAPI
  *     3. Session established — verify on demand
  *
  *   Multi-party (town hall):
- *     1. Creator declares a channel with capacity + autoStart
- *     2. Agents join a live session — each attested on entry
+ *     1. Creator proves control, declares a channel with capacity + autoStart
+ *     2. Agents prove control and join a live session — each attested on entry
  *     3. Re-verify ejects agents who lose credentials
  *     4. Creator can kick (action: "kick"), agents can leave (action: "leave")
+ *        — each action signed by the wallet whose authority it invokes
  *
- * No artificial cap on participants — bilateral, working group, or town hall.
- * Every agent must satisfy the same conditions. Lose the credential, get ejected.
+ * Proof-of-control: on-chain holdings are public, so naming a wallet proves
+ * nothing. Before any action, the agent signs a one-time challenge with the
+ * wallet's key. Control of the wallet — not knowledge of its address — is what
+ * grants entry.
+ *
+ * Wallets: by default this generates fresh, throwaway keypairs. A fresh wallet
+ * holds nothing, so the attestation honestly returns pass:false against a real
+ * token condition — that is the security property, not a bug: you cannot fake
+ * holdings, and you cannot borrow someone else's qualifying address. To see a
+ * real PASS, point at a wallet you actually control and fund:
+ *
+ *     DEMO_PRIVATE_KEY=0xYOURKEY node agenttalk-example.js
+ *
+ * That key is read only at runtime and never leaves your machine. In production
+ * each agent uses its own funded wallet and its own key, which it never ships.
  *
  * API: https://skyemeta.com/api/agenttalk/
  * Docs: https://skyemeta.com/agenttalk/
  *
- * No dependencies — uses Node.js built-in https module.
+ * Requires: viem (already a dependency of this repo) for keypair + signing.
  *
  * Usage:
  *   node agenttalk-example.js                                    # bilateral (2 agents)
  *   node agenttalk-example.js multiparty                         # multi-party (3 agents)
  *   AGENTTALK_API_KEY=insr_live_... node agenttalk-example.js    # use your own key
+ *   DEMO_PRIVATE_KEY=0x... node agenttalk-example.js             # gate on a real wallet
  */
 
 const https = require("https");
+const { privateKeyToAccount, generatePrivateKey } = require("viem/accounts");
 
 const BASE_URL = "https://skyemeta.com/api/agenttalk";
+
+// A real token condition: hold >= 1 USDC on Ethereum. A fresh wallet fails it
+// honestly; a funded wallet (via DEMO_PRIVATE_KEY) passes it.
+const CONDITIONS = [
+  {
+    type: "token_balance",
+    contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    chainId: 1,
+    threshold: 1,
+    decimals: 6,
+    label: "USDC on Ethereum",
+  },
+];
 
 /**
  * POST or GET request. Returns parsed JSON.
@@ -66,6 +95,52 @@ function request(url, options) {
   });
 }
 
+/**
+ * Build an account from an env-supplied private key, or a fresh throwaway one.
+ * `envName` lets each agent optionally use its own funded wallet.
+ */
+function makeAccount(envName) {
+  const pk =
+    (envName && process.env[envName]) ||
+    process.env.DEMO_PRIVATE_KEY ||
+    generatePrivateKey();
+  return privateKeyToAccount(pk);
+}
+
+/**
+ * Prove control of `account` for `action`: fetch a one-time challenge, sign the
+ * returned message (EIP-191), return the signature to pass to the action.
+ */
+async function proveControl(account, action) {
+  const res = await request(`${BASE_URL}/challenge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wallet: account.address, action }),
+  });
+  if (res.status !== 200 || !res.data.message) {
+    throw new Error(`challenge failed: ${JSON.stringify(res.data)}`);
+  }
+  return account.signMessage({ message: res.data.message });
+}
+
+// Interpret a declare/join response under Design A. Returns the data on success
+// (HTTP 200), or null after explaining the outcome. A 403 with pass:false means
+// the signature was accepted (control proven) but the wallet doesn't satisfy the
+// condition — expected for a fresh throwaway wallet, not an error.
+function handleGate(label, res) {
+  if (res.status === 200 && (res.data.channelId || res.data.sessionId)) return res.data;
+  if (res.status === 403 && res.data && res.data.pass === false) {
+    console.log(`\n   Proof-of-control accepted — the signature passed server verification.`);
+    console.log(`   Condition not met: this wallet holds none of the required tokens, so`);
+    console.log(`   ${label} did not open a session. (Expected for a fresh throwaway wallet.)`);
+    console.log(`   Set DEMO_PRIVATE_KEY to a funded wallet that satisfies the condition to`);
+    console.log(`   complete the full flow.`);
+    return null;
+  }
+  console.log(`   FAILED (${res.status}):`, JSON.stringify(res.data));
+  return null;
+}
+
 function printAgents(agents) {
   console.log(`   Agents attested: ${agents.length}`);
   for (const agent of agents) {
@@ -85,42 +160,32 @@ async function bilateral() {
   console.log("=".repeat(60));
   console.log("");
 
-  const agentA = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
-  const agentB = "0x55FE002aefF02F77364de339a1292923A15844B8";
+  const agentA = makeAccount("DEMO_PRIVATE_KEY_A");
+  const agentB = makeAccount("DEMO_PRIVATE_KEY_B");
 
   const apiKey = process.env.AGENTTALK_API_KEY;
 
-  // --- Step 1: Declare channel ---
-  console.log("1. Agent A declares a bilateral channel...");
-  console.log(`   Wallet: ${agentA}`);
+  // --- Step 1: Prove control + declare channel ---
+  console.log("1. Agent A proves control and declares a bilateral channel...");
+  console.log(`   Wallet: ${agentA.address}`);
   console.log(`   Condition: Hold >= 1 USDC on Ethereum\n`);
 
   const headers = { "Content-Type": "application/json" };
   if (apiKey) headers["x-api-key"] = apiKey;
 
+  const declareSig = await proveControl(agentA, "declare");
   const declareRes = await request(`${BASE_URL}/declare`, {
     method: "POST",
     headers,
     body: JSON.stringify({
-      wallet: agentA,
-      conditions: [
-        {
-          type: "token_balance",
-          contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-          chainId: 1,
-          threshold: 1,
-          decimals: 6,
-          label: "USDC on Ethereum",
-        },
-      ],
+      wallet: agentA.address,
+      signature: declareSig,
+      conditions: CONDITIONS,
       expiresIn: 300,
     }),
   });
 
-  if (declareRes.status !== 200 || !declareRes.data.channelId) {
-    console.log("   FAILED:", JSON.stringify(declareRes.data));
-    return;
-  }
+  if (!handleGate("declare", declareRes)) return;
 
   const { channelId, conditionsHash, expiresAt } = declareRes.data;
   console.log(`   Channel: ${channelId}`);
@@ -128,33 +193,29 @@ async function bilateral() {
   console.log(`   Conditions hash: ${conditionsHash}`);
   console.log(`   Expires: ${expiresAt}\n`);
 
-  // --- Step 2: Join channel ---
-  console.log("2. Agent B joins the channel...");
-  console.log(`   Wallet: ${agentB}\n`);
+  // --- Step 2: Prove control + join channel ---
+  console.log("2. Agent B proves control and joins the channel...");
+  console.log(`   Wallet: ${agentB.address}\n`);
 
+  const joinSig = await proveControl(agentB, "join");
   const joinRes = await request(`${BASE_URL}/join`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ channelId, wallet: agentB }),
+    body: JSON.stringify({ channelId, wallet: agentB.address, signature: joinSig }),
   });
 
-  if (joinRes.status !== 200 || !joinRes.data.sessionId) {
-    console.log("   FAILED:", JSON.stringify(joinRes.data));
-    return;
-  }
+  if (!handleGate("join", joinRes)) return;
 
   const { sessionId, agents } = joinRes.data;
   console.log(`   Session: ${sessionId}`);
   printAgents(agents);
-  console.log("");
 
   // --- Step 3: Verify session ---
-  console.log("3. Verify session...");
+  console.log("\n3. Verify session...");
 
-  const verifyRes = await request(
-    `${BASE_URL}/session?id=${sessionId}`,
-    { method: "GET" }
-  );
+  const verifyRes = await request(`${BASE_URL}/session?id=${sessionId}`, {
+    method: "GET",
+  });
 
   if (verifyRes.status === 200) {
     const s = verifyRes.data;
@@ -169,14 +230,14 @@ async function bilateral() {
   console.log("Summary:");
   console.log(`  Channel: ${channelId}`);
   console.log(`  Session: ${sessionId}`);
-  console.log(`  All agents attested: YES`);
+  console.log(`  Both wallets proved control and were attested.`);
   console.log(`  Attestation signatures: ECDSA ES256 (kid: insumer-attest-v1)`);
   console.log(`  JWKS: https://insumermodel.com/.well-known/jwks.json`);
   console.log(`  Conditions hash: ${conditionsHash}`);
   console.log("");
-  console.log("Every agent verified against the same on-chain conditions.");
-  console.log("Each attestation is independently verifiable via JWKS.");
-  console.log("Lose the credential, get ejected from the room.");
+  console.log("Every agent proved control of its wallet and was verified against");
+  console.log("the same on-chain conditions. Each attestation is independently");
+  console.log("verifiable via JWKS. Lose the credential, get ejected from the room.");
 }
 
 // ─── Multi-party flow (capacity N, autoStart) ──────────────────
@@ -186,46 +247,35 @@ async function multiparty() {
   console.log("=".repeat(60));
   console.log("");
 
-  // Three wallets that hold USDC on Ethereum
-  const creator = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
-  const agentB = "0x55FE002aefF02F77364de339a1292923A15844B8";
-  const agentC = "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8";
+  const creator = makeAccount("DEMO_PRIVATE_KEY_A");
+  const agentB = makeAccount("DEMO_PRIVATE_KEY_B");
+  const agentC = makeAccount("DEMO_PRIVATE_KEY_C");
 
   const apiKey = process.env.AGENTTALK_API_KEY;
 
-  // --- Step 1: Declare with capacity + autoStart ---
-  console.log("1. Creator declares a multi-party channel (capacity: 5, autoStart: true)...");
-  console.log(`   Wallet: ${creator}`);
+  // --- Step 1: Prove control + declare with capacity + autoStart ---
+  console.log("1. Creator proves control and declares a multi-party channel (capacity: 5, autoStart: true)...");
+  console.log(`   Wallet: ${creator.address}`);
   console.log(`   Condition: Hold >= 1 USDC on Ethereum\n`);
 
   const headers = { "Content-Type": "application/json" };
   if (apiKey) headers["x-api-key"] = apiKey;
 
+  const declareSig = await proveControl(creator, "declare");
   const declareRes = await request(`${BASE_URL}/declare`, {
     method: "POST",
     headers,
     body: JSON.stringify({
-      wallet: creator,
-      conditions: [
-        {
-          type: "token_balance",
-          contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-          chainId: 1,
-          threshold: 1,
-          decimals: 6,
-          label: "USDC on Ethereum",
-        },
-      ],
+      wallet: creator.address,
+      signature: declareSig,
+      conditions: CONDITIONS,
       capacity: 5,
       autoStart: true,
       expiresIn: 300,
     }),
   });
 
-  if (declareRes.status !== 200 || !declareRes.data.channelId) {
-    console.log("   FAILED:", JSON.stringify(declareRes.data));
-    return;
-  }
+  if (!handleGate("declare", declareRes)) return;
 
   const { channelId, conditionsHash, sessionId, expiresAt } = declareRes.data;
   console.log(`   Channel: ${channelId}`);
@@ -234,39 +284,35 @@ async function multiparty() {
   console.log(`   Conditions hash: ${conditionsHash}`);
   console.log(`   Expires: ${expiresAt}\n`);
 
-  // --- Step 2: Agent B joins the live session ---
-  console.log("2. Agent B joins the live session...");
-  console.log(`   Wallet: ${agentB}\n`);
+  // --- Step 2: Agent B proves control + joins the live session ---
+  console.log("2. Agent B proves control and joins the live session...");
+  console.log(`   Wallet: ${agentB.address}\n`);
 
+  const joinSigB = await proveControl(agentB, "join");
   const joinB = await request(`${BASE_URL}/join`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ channelId, wallet: agentB }),
+    body: JSON.stringify({ channelId, wallet: agentB.address, signature: joinSigB }),
   });
 
-  if (joinB.status !== 200 || !joinB.data.sessionId) {
-    console.log("   FAILED:", JSON.stringify(joinB.data));
-    return;
-  }
+  if (!handleGate("join", joinB)) return;
 
   console.log(`   Session: ${joinB.data.sessionId}`);
   printAgents(joinB.data.agents);
   console.log("");
 
-  // --- Step 3: Agent C joins too ---
-  console.log("3. Agent C joins the live session...");
-  console.log(`   Wallet: ${agentC}\n`);
+  // --- Step 3: Agent C proves control + joins too ---
+  console.log("3. Agent C proves control and joins the live session...");
+  console.log(`   Wallet: ${agentC.address}\n`);
 
+  const joinSigC = await proveControl(agentC, "join");
   const joinC = await request(`${BASE_URL}/join`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ channelId, wallet: agentC }),
+    body: JSON.stringify({ channelId, wallet: agentC.address, signature: joinSigC }),
   });
 
-  if (joinC.status !== 200 || !joinC.data.sessionId) {
-    console.log("   FAILED:", JSON.stringify(joinC.data));
-    return;
-  }
+  if (!handleGate("join", joinC)) return;
 
   console.log(`   Session: ${joinC.data.sessionId}`);
   printAgents(joinC.data.agents);
@@ -275,10 +321,9 @@ async function multiparty() {
   // --- Step 4: Verify session (all 3 agents) ---
   console.log("4. Verify session (all 3 agents)...");
 
-  const verifyRes = await request(
-    `${BASE_URL}/session?id=${sessionId}`,
-    { method: "GET" }
-  );
+  const verifyRes = await request(`${BASE_URL}/session?id=${sessionId}`, {
+    method: "GET",
+  });
 
   if (verifyRes.status === 200) {
     const s = verifyRes.data;
@@ -290,17 +335,19 @@ async function multiparty() {
     console.log(`   Expires: ${s.expiresAt}`);
   }
 
-  // --- Step 5: Creator kicks Agent C ---
-  console.log("\n5. Creator kicks Agent C...");
+  // --- Step 5: Creator proves control + kicks Agent C ---
+  console.log("\n5. Creator proves control and kicks Agent C...");
 
+  const kickSig = await proveControl(creator, "kick");
   const kickRes = await request(`${BASE_URL}/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       action: "kick",
       channelId,
-      wallet: agentC,
-      creatorWallet: creator,
+      wallet: agentC.address,
+      creatorWallet: creator.address,
+      signature: kickSig,
     }),
   });
 
@@ -311,13 +358,19 @@ async function multiparty() {
     console.log("   FAILED:", JSON.stringify(kickRes.data));
   }
 
-  // --- Step 6: Agent B leaves voluntarily ---
-  console.log("\n6. Agent B leaves voluntarily...");
+  // --- Step 6: Agent B proves control + leaves voluntarily ---
+  console.log("\n6. Agent B proves control and leaves voluntarily...");
 
+  const leaveSig = await proveControl(agentB, "leave");
   const leaveRes = await request(`${BASE_URL}/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "leave", channelId, wallet: agentB }),
+    body: JSON.stringify({
+      action: "leave",
+      channelId,
+      wallet: agentB.address,
+      signature: leaveSig,
+    }),
   });
 
   if (leaveRes.status === 200) {
@@ -332,12 +385,12 @@ async function multiparty() {
   console.log(`  Channel: ${channelId}`);
   console.log(`  Session: ${sessionId}`);
   console.log(`  Capacity: 5 (3 joined, 1 kicked, 1 left)`);
+  console.log(`  Every action signed by the wallet whose authority it invoked.`);
   console.log(`  Attestation signatures: ECDSA ES256 (kid: insumer-attest-v1)`);
   console.log(`  JWKS: https://insumermodel.com/.well-known/jwks.json`);
   console.log("");
-  console.log("Multi-party session: agents join, get kicked, or leave.");
-  console.log("Re-verify ejects anyone who loses a credential.");
-  console.log("The room stays clean.");
+  console.log("Multi-party session: agents prove control, join, get kicked, or leave.");
+  console.log("Re-verify ejects anyone who loses a credential. The room stays clean.");
 }
 
 // ─── Entry point ────────────────────────────────────────────────
