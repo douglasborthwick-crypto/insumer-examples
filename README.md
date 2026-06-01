@@ -119,7 +119,7 @@ Every response is signed with ECDSA P-256. Pass the wallet auth result to downst
 | [verify-tron.js](verify-tron.js) | Node.js | Tron: native TRX, USDT-TRC20, fact profile with Tron dimension |
 | [verify-stellar.js](verify-stellar.js) | Node.js | Stellar: native XLM, USDC trustline, BENJI trustline, fact profile |
 | [verify-sui.js](verify-sui.js) | Node.js | Sui: native SUI, USDC, fact profile with institutional dimension |
-| [x402-condition-gate.js](x402-condition-gate.js) | Node.js | x402 endpoint that gates free access on the payer's wallet eligibility |
+| [x402-condition-gate.js](x402-condition-gate.js) | Node.js | x402 endpoint that gates free access on the payer's wallet eligibility (incl. a self-scaling `ratio_to_amount` option, `?gate=ratio`: hold >= 10x the payment) |
 
 ### XRPL
 

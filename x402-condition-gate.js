@@ -71,6 +71,28 @@ const CONDITIONS = [
   },
 ];
 
+// ─── Alternative: a self-scaling agent-spend gate (ratio_to_amount) ───
+// x402 (and AP2, ACP, MPP) authorize agent spending with FLAT caps. A
+// `ratio_to_amount` condition instead ties eligibility to the size of THIS
+// payment: the payer must hold at least `multiple`× the amount it is paying.
+// One rule scales to every transaction — no per-amount re-tuning — and it
+// means the same thing on any EVM chain or token. `amount` is in token/display
+// units (not atomic), so it is derived from the x402 payment value. RPC EVM
+// chains only. Try it live by adding `?gate=ratio` to the /premium request.
+function selfScalingConditions(amountAtomicStr, decimals = 6) {
+  const amount = Number(amountAtomicStr) / Math.pow(10, decimals);
+  return [
+    {
+      type: "ratio_to_amount",
+      contractAddress: USDC_BASE,
+      chainId: BASE_CHAIN_ID,
+      multiple: 10,
+      amount, // met iff the payer holds >= 10x the USDC paid in this x402 call
+      label: `Holds >= 10x the ${amount} USDC payment`,
+    },
+  ];
+}
+
 // EIP-3009 TransferWithAuthorization typed-data, used to authenticate the payer.
 const EIP3009_DOMAIN = {
   name: "USD Coin",
@@ -150,17 +172,18 @@ async function authenticatePayer(exactPayload) {
 }
 
 /**
- * Evaluate the authenticated wallet against the configured conditions.
+ * Evaluate the authenticated wallet against the given conditions.
  * Returns the raw InsumerAPI attestation (signed, JWKS-verifiable). The
  * endpoint never re-signs this — it forwards InsumerAPI's signature as-is.
  * @param {string} wallet - authenticated payer address
+ * @param {object[]} [conditions=CONDITIONS] - conditions to evaluate
  * @returns {Promise<object>} the attestation response data
  */
-async function attest(wallet) {
+async function attest(wallet, conditions = CONDITIONS) {
   const res = await fetch(`${API}/v1/attest`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-API-Key": KEY },
-    body: JSON.stringify({ wallet, conditions: CONDITIONS, format: "jwt" }),
+    body: JSON.stringify({ wallet, conditions, format: "jwt" }),
   });
   const body = await res.json();
   if (!body.ok) {
@@ -201,9 +224,15 @@ app.get("/premium", async (req, res) => {
   }
 
   // Step 4: eligibility check — the one signed call between request and charge.
+  // Default gate: holds USDC on Base. With `?gate=ratio`, gate on a self-scaling
+  // rule instead — holds >= 10x the amount being paid in THIS x402 call.
+  const conditions =
+    req.query.gate === "ratio"
+      ? selfScalingConditions(payment.payload.authorization.value)
+      : CONDITIONS;
   let data;
   try {
-    data = await attest(wallet);
+    data = await attest(wallet, conditions);
   } catch (err) {
     // Eligibility service unavailable → fall through to the normal paid flow.
     return res.status(402).json({ ...paymentRequired(resourceUrl), error: String(err.message) });
@@ -243,7 +272,8 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`x402 condition gate listening on http://localhost:${PORT}/premium`);
     console.log(`Conditions: ${CONDITIONS.map((c) => c.label).join(", ")}`);
+    console.log(`Add ?gate=ratio to gate on a self-scaling rule (hold >= 10x the payment).`);
   });
 }
 
-module.exports = { app, authenticatePayer, attest, paymentRequired, EIP3009_DOMAIN, EIP3009_TYPES };
+module.exports = { app, authenticatePayer, attest, selfScalingConditions, paymentRequired, EIP3009_DOMAIN, EIP3009_TYPES };
