@@ -66,7 +66,7 @@ const CONDITIONS = [
     type: "token_balance",
     contractAddress: USDC_BASE,
     chainId: BASE_CHAIN_ID,
-    threshold: 1,
+    threshold: "1",
     label: "Holds USDC on Base",
   },
 ];
@@ -86,8 +86,8 @@ function selfScalingConditions(amountAtomicStr, decimals = 6) {
       type: "ratio_to_amount",
       contractAddress: USDC_BASE,
       chainId: BASE_CHAIN_ID,
-      multiple: 10,
-      amount, // met iff the payer holds >= 10x the USDC paid in this x402 call
+      multiple: "10", // v2 keys take ratio quantities as decimal strings
+      amount: String(amount), // met iff the payer holds >= 10x the USDC paid in this x402 call
       label: `Holds >= 10x the ${amount} USDC payment`,
     },
   ];

@@ -79,7 +79,7 @@ def check_rpc_failure(resp: httpx.Response, result: dict) -> bool:
 
 
 def verify_token(client: httpx.Client, wallet: str, contract: str,
-                 chain_id: int, threshold: int, label: str) -> dict:
+                 chain_id: int, threshold: str, label: str) -> dict:
     """Verify a single token balance condition."""
     resp = client.post(f"{API}/v1/attest", json={
         "wallet": wallet,
@@ -157,7 +157,7 @@ def main():
     print("=" * 60)
     result = verify_token(
         client, DEMO_WALLET, SHIB_CONTRACT,
-        chain_id=1, threshold=1_000_000, label="SHIB holder"
+        chain_id=1, threshold="1000000", label="SHIB holder"
     )
     print(json.dumps(result, indent=2))
     print()
@@ -182,7 +182,7 @@ def main():
             "type": "token_balance",
             "contractAddress": SHIB_CONTRACT,
             "chainId": 1,
-            "threshold": 1_000_000,
+            "threshold": "1000000",
             "label": "SHIB holder",
         },
         {
@@ -234,7 +234,7 @@ def main():
             "type": "token_balance",
             "contractAddress": "native",
             "chainId": "xrpl",
-            "threshold": 100,
+            "threshold": "100",
             "label": "XRP >= 100",
         }],
     })
@@ -252,7 +252,7 @@ def main():
             "contractAddress": "rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De",
             "chainId": "xrpl",
             "currency": "RLUSD",
-            "threshold": 10,
+            "threshold": "10",
             "label": "RLUSD >= 10 on XRPL",
         }],
     })

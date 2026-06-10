@@ -35,7 +35,7 @@ curl -s -X POST https://api.insumermodel.com/v1/attest \
         "type": "token_balance",
         "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         "chainId": 1,
-        "threshold": 100,
+        "threshold": "100",
         "decimals": 6,
         "label": "USDC >= 100 on Ethereum"
       }
@@ -134,7 +134,7 @@ curl -s -X POST https://api.insumermodel.com/v1/attest \
         "type": "token_balance",
         "contractAddress": "native",
         "chainId": "xrpl",
-        "threshold": 100,
+        "threshold": "100",
         "label": "XRP >= 100"
       }
     ]
@@ -257,8 +257,8 @@ A SCIF for AI agents. Every agent in the room verifies the same on-chain conditi
 ```json
 {
   "conditions": [
-    { "type": "token_balance", "chainId": 1, "threshold": 1000000, "label": "USDC >= $1M on Ethereum" },
-    { "type": "token_balance", "chainId": 137, "threshold": 500000, "label": "USDC >= $500K on Polygon" },
+    { "type": "token_balance", "chainId": 1, "threshold": "1000000", "label": "USDC >= $1M on Ethereum" },
+    { "type": "token_balance", "chainId": 137, "threshold": "500000", "label": "USDC >= $500K on Polygon" },
     { "type": "nft_ownership", "chainId": 1, "label": "Series 7 attestation NFT" },
     { "type": "nft_ownership", "chainId": 1, "label": "KYC credential" },
     { "type": "nft_ownership", "chainId": 8453, "label": "NDA attestation on Base" },

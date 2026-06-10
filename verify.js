@@ -44,7 +44,7 @@ app.post("/verify", async (req, res) => {
       type: "token_balance",
       contractAddress: "0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE",
       chainId: 1,
-      threshold: 1000000,
+      threshold: "1000000",
       label: "SHIB holder",
     },
   ];
@@ -176,7 +176,7 @@ app.post("/verify-xrpl", async (req, res) => {
       type: "token_balance",
       contractAddress: "native",
       chainId: "xrpl",
-      threshold: 100,
+      threshold: "100",
       label: "XRP >= 100",
     },
   ];

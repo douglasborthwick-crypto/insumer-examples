@@ -90,7 +90,7 @@ async function attestDirect(wallet) {
     body: JSON.stringify({
       wallet,
       conditions: [
-        { type: "token_balance", contractAddress: USDC_BASE, chainId: 8453, threshold: 1, label: "Holds USDC on Base" },
+        { type: "token_balance", contractAddress: USDC_BASE, chainId: 8453, threshold: "1", label: "Holds USDC on Base" },
       ],
     }),
   });
