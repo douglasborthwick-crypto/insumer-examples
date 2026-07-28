@@ -1,6 +1,6 @@
 # InsumerAPI Examples
 
-Condition-based access infrastructure for 37 blockchains. Send a wallet and conditions, get a signed boolean. No secrets, no identity, no static credentials.
+Condition-based access infrastructure for 38 blockchains. Send a wallet and conditions, get a signed boolean. No secrets, no identity, no static credentials.
 
 ## Try It (no key needed)
 
@@ -95,7 +95,7 @@ Verify the signature offline via JWKS: `https://api.insumermodel.com/v1/jwks`
 
 - **Token balances**: Does this wallet hold at least X of token Y on chain Z?
 - **NFT ownership**: Does this wallet own an NFT from collection Y on chain Z?
-- **Multiple conditions**: Up to 10 conditions per call, across any mix of 37 chains
+- **Multiple conditions**: Up to 10 conditions per call, across any mix of 38 chains
 - **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, XDC, Solana, XRPL, Bitcoin, Tron, Stellar, Sui, and 23 more EVM chains
 - **Fact profiles**: 49-check composite wallet-state profile across 27 chains (`POST /v1/trust`) — no score, no opinion, just cryptographically verifiable evidence organized by dimension
 
