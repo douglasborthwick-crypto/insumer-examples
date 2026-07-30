@@ -22,6 +22,8 @@ Free tier: **100 reads/day** + 10 verification credits. Or run the quickstart �
 bash quickstart.sh
 ```
 
+Prefer no key at all? `/v1/attest` also speaks **x402 pay-per-call** — see [Three Ways to Authenticate](#three-ways-to-authenticate).
+
 ## Verify a Wallet
 
 ```bash
@@ -64,8 +66,7 @@ Response — signed boolean, no balances exposed:
             "chainId": 1,
             "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
             "operator": "gte",
-            "threshold": 100,
-            "decimals": 6
+            "threshold": "100"
           },
           "conditionHash": "0x554251734232c8b43062f1cf2bb51b76650d13268104d74c645f4893e67ef69c",
           "blockNumber": "0x1799043",
@@ -78,7 +79,7 @@ Response — signed boolean, no balances exposed:
       "expiresAt": "2026-03-26T20:34:33.969Z"
     },
     "sig": "dmNJKqnGZ9f47qpWax9gxgw1DhUKHKHrbLspTop8NWzYhv2fNpVAt1gAuhUfU4xPsgXTCdrmTXI4vEE50dcfEA==",
-    "kid": "insumer-attest-v1"
+    "kid": "insumer-attest-v2"
   },
   "meta": {
     "version": "1.0",
@@ -89,15 +90,36 @@ Response — signed boolean, no balances exposed:
 }
 ```
 
-Verify the signature offline via JWKS: `https://api.insumermodel.com/v1/jwks`
+Verify the signature offline via JWKS: `https://api.insumermodel.com/v1/jwks`. Three `kid` labels are published — `insumer-attest-v1` (v1 attest and v1 trust), `insumer-attest-v2` (v2 attest), `insumer-trust-v2` (v2 trust) — all resolving to the same P-256 key.
+
+Note on key versions: every newly created key is **v2** — thresholds go in as decimal **strings** (`"100"`, not `100`; a JSON number is rejected with 400) and come back as canonical decimal strings, with no `decimals` field in the response. Older v1 keys keep the numeric format and the `insumer-attest-v1` kid.
+
+## Three Ways to Authenticate
+
+1. **API key** (default) — `X-API-Key` header. Free tier in one call via `POST /v1/keys/create`.
+2. **x402 pay-per-call** (no key at all) — call `POST /v1/attest`, `/v1/trust`, or `/v1/trust/batch` with no credential headers and you get a 402 quote instead of a 401. Sign the EIP-3009 USDC authorization on Base and retry with the `X-PAYMENT` header. Gasless for the payer, zero signup — the fastest path for an autonomous agent. Dynamic pricing: $0.05–0.10 per attest, $0.15–0.30 per trust profile, $0.15–3.00 per batch.
+3. **Wallet-signed (SIWE)** — `Authorization: Wallet <base64(JSON({message, signature}))>` from a wallet that holds the Insumer Access pass (soulbound ERC-721 on Base, `0x3E2a408cc6eceba04FF9d04A5B8B05aBa8DD50ce`). Wallet-native keys with no email via `POST /v1/keys/buy`. Drop-in middleware: [`@skyemeta/access`](https://www.npmjs.com/package/@skyemeta/access) on npm.
 
 ## What Wallet Auth Covers
 
-- **Token balances**: Does this wallet hold at least X of token Y on chain Z?
-- **NFT ownership**: Does this wallet own an NFT from collection Y on chain Z?
+Nine condition types, mixable in a single call:
+
+- **Token balances** (`token_balance`): Does this wallet hold at least X of token Y on chain Z?
+- **NFT ownership** (`nft_ownership`): Does this wallet own an NFT from collection Y? 34 chains, including XRPL NFTs with taxon filters
+- **EAS attestations** (`eas_attestation`): Does this wallet hold an on-chain attestation matching a schema and attester? Pre-configured compliance templates via `GET /v1/compliance/templates`
+- **Farcaster identity** (`farcaster_id`): Is this wallet a registered Farcaster identity?
+- **Arbitrary view calls** (`evm_view_call`): Does `anyViewFunction(address)` on your contract return `true` for this wallet?
+- **Ratio to amount** (`ratio_to_amount`): Does the wallet hold >= N times a reference amount? Self-scaling collateral checks — "hold 10x the transaction size"
+- **Ratio to supply** (`ratio_to_supply`): Does the wallet hold >= a given fraction of an ERC-20's total supply?
+- **ERC-8004 agent registration** (`erc8004_agent`): Is this wallet the owner or bound wallet of an agent in the ERC-8004 Identity Registry on Base? Honest semantics: registration is permissionless — the signed statement is registration and binding, not vetting or reputation
+- **ERC-7710 delegation validity** (`erc7710_delegation`): Did a principal really authorize this agent wallet? Verifies the signed MetaMask Delegation Framework delegation — delegate match, declared delegator, EIP-712 signature (EOA or ERC-1271), on-chain revocation as of the anchored block, and recognized caveat enforcers. Delegation attestations expire in 5 minutes, keeping the verdict window tight
+
+Plus:
+
 - **Multiple conditions**: Up to 10 conditions per call, across any mix of 38 chains
-- **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, XDC, Solana, XRPL, Bitcoin, Tron, Stellar, Sui, and 23 more EVM chains
-- **Fact profiles**: 49-check composite wallet-state profile across 27 chains (`POST /v1/trust`) — no score, no opinion, just cryptographically verifiable evidence organized by dimension
+- **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, XDC, Solana, XRPL, Bitcoin, Tron, Stellar, Sui, and 24 more EVM chains
+- **Merkle storage proofs**: `proof: "merkle"` adds EIP-1186 storage proofs for trustless verification against block headers — token balance slots on 28 of 32 EVM chains, and delegation revocation slots (2 credits instead of 1)
+- **Fact profiles**: up to 49 checks across 27 chains in 9 dimensions (`POST /v1/trust`) — no score, no opinion, just cryptographically verifiable evidence organized by dimension. Batch up to 10 wallets in one call via `POST /v1/trust/batch`
 
 Every response is signed with ECDSA P-256. Pass the wallet auth result to downstream systems as cryptographic proof without re-querying the chain.
 
@@ -107,6 +129,7 @@ Every response is signed with ECDSA P-256. Pass the wallet auth result to downst
 - **Compliance** — KYA (Know Your Agent) checks before DeFi interactions
 - **DAO governance** — verify voting eligibility across chains
 - **Agent cold-start signals** — wallet-state evidence as a baseline before behavioral history accrues for new AI agents
+- **Agent authorization** — verify an agent's ERC-8004 registration and ERC-7710 delegation before honoring its requests
 
 ## Examples
 
@@ -164,6 +187,27 @@ Architectural pattern across all four production contracts: InsumerAPI signs off
 - **LangChain** (Python agents): `pip install langchain-insumer` — [PyPI](https://pypi.org/project/langchain-insumer/)
 - **GPT Actions**: Import the [OpenAPI spec](https://insumermodel.com/openapi.yaml) into any Custom GPT
 
+## Submit to the Public Registry
+
+Anyone with an API key can submit a token or NFT collection to the public Insumer registry — free, no credits charged. Submissions land as pending, go through human review, and appear in the registry (and the surfaces that read it) once approved. Idempotent per chain + address: re-submitting an existing asset returns the existing entry.
+
+```bash
+curl -s -X POST https://api.insumermodel.com/v1/registry/submit \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -d '{
+    "name": "My Token",
+    "assetType": "token",
+    "symbol": "MYT",
+    "contractAddress": "0x...",
+    "chainId": 8453,
+    "standard": "ERC-20",
+    "logo": "https://example.com/logo.png"
+  }'
+```
+
+`assetType` routes the submission: `"token"` (ERC-20, ERC-3643, SPL — `symbol` required) or `"nft"` (ERC-721/1155, incl. ERC-5192 soulbound). Omit it and it is inferred from `standard`. EVM uses `contractAddress`; Solana uses `mintAddress` with `chainId: "solana"`.
+
 ## Handling `rpc_failure` Errors
 
 If the API cannot reach an upstream blockchain data source after retries, it returns HTTP 503 with `error.code: "rpc_failure"`. No attestation is signed, no credits are charged. This is a retryable error — wait 2-5 seconds and retry.
@@ -194,6 +238,15 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 | Free | 100/day | 10 | $0 |
 | Pro | 10,000/day | 1,000/mo | $29/mo |
 | Enterprise | 100,000/day | 5,000/mo | $99/mo |
+
+Verification costs: 1 credit per attest (2 with `proof: "merkle"`), 3 per trust profile (6 with proof), 3 per wallet in a batch.
+
+Beyond the card tiers:
+
+- **x402 pay-per-call** — no key, no signup; USDC on Base per call (see [Three Ways to Authenticate](#three-ways-to-authenticate))
+- **Crypto credit top-ups** — `POST /v1/credits/buy` with USDC, USDT, or BTC; volume-priced from 25 credits/$1 ($5–99) up to 50 credits/$1 ($500+)
+- **Prepaid crypto keys** — `POST /v1/keys/purchase`: 30-day Pro or Enterprise keys paid in USDC/USDT/BTC, no card
+- **Wallet-native keys** — `POST /v1/keys/buy`: the sender wallet is the identity, no email needed
 
 [Full pricing →](https://insumermodel.com/pricing/)
 
@@ -241,7 +294,7 @@ Post your JWKS URL + sample JWT on [issues/1](https://github.com/douglasborthwic
 | File | Description |
 |------|-------------|
 | [wallet-resolve.js](wallet-resolve.js) | Multi-attestation fetcher — calls InsumerAPI first (wallet-state foundation layer), then fans out to all configured providers in parallel; outputs a standard multi-attestation envelope compatible with `multi-attest-verify.js` |
-| [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 10 signed dimensions across 9 independent issuers (ES256 + EdDSA) |
+| [multi-attest-verify.js](multi-attest-verify.js) | Verifies signatures from 12 signed dimensions across 10 independent issuers (ES256 + EdDSA) |
 | [thoughtproof-verify-example.js](thoughtproof-verify-example.js) | ThoughtProof attestation walkthrough — JWKS fetch, EdDSA key import, live wallet-bound signature verification (`/v1/issuer/wallet/{wallet}`) |
 | [x402-sar-integration.js](x402-sar-integration.js) | x402 SAR integration — attestation → payment → delivery proof → offline verification |
 | [x402-sar-integration-settlementwitness.js](x402-sar-integration-settlementwitness.js) | SettlementWitness SAR integration — live endpoint, Ed25519 verification ([nutstrut](https://github.com/nutstrut)) |
