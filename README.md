@@ -181,9 +181,9 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 }
 ```
 
-## Supported Chains (37)
+## Supported Chains (38)
 
-**EVM (31):** Ethereum (1), BNB Chain (56), Base (8453), Avalanche (43114), Polygon (137), Arbitrum (42161), Optimism (10), XDC (50), Chiliz (88888), Soneium (1868), Plume (98866), Sonic (146), Gnosis (100), Mantle (5000), Scroll (534352), Linea (59144), zkSync Era (324), Blast (81457), Taiko (167000), Ronin (2020), Celo (42220), Moonbeam (1284), Moonriver (1285), Viction (88), opBNB (204), World Chain (480), Unichain (130), Ink (57073), Sei (1329), Berachain (80094), ApeChain (33139)
+**EVM (32):** Ethereum (1), BNB Chain (56), Base (8453), Avalanche (43114), Polygon (137), Arbitrum (42161), Optimism (10), XDC (50), Chiliz (88888), Soneium (1868), Plume (98866), Sonic (146), Gnosis (100), Mantle (5000), Scroll (534352), Linea (59144), zkSync Era (324), Blast (81457), Taiko (167000), Ronin (2020), Celo (42220), Moonbeam (1284), Moonriver (1285), Viction (88), opBNB (204), World Chain (480), Unichain (130), Ink (57073), Sei (1329), Berachain (80094), ApeChain (33139), Robinhood Chain (4663)
 
 **Non-EVM (6):** Solana (`chainId: "solana"`), XRPL (`chainId: "xrpl"` — native XRP, trust line tokens, NFTs), Bitcoin (`bitcoinWallet` — native BTC, P2PKH/P2SH/bech32/Taproot), Tron (`chainId: "tron"` — native TRX, TRC-20 incl. USDT-TRC20), Stellar (`chainId: "stellar"` — native XLM, classic trustlines incl. USDC and BENJI), Sui (`chainId: "sui"` — native SUI, Sui-native tokens incl. USDC)
 
@@ -252,7 +252,7 @@ Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Would Yo
 
 ## Agent-to-Agent Sessions (AgentTalk)
 
-A SCIF for AI agents. Every agent in the room verifies the same on-chain conditions before information moves — like verifying clearance before entering a secure facility. Bilateral sessions, working groups, or town halls. No artificial cap on participants. Up to 10 composable conditions per channel across any mix of 37 chains.
+A SCIF for AI agents. Every agent in the room verifies the same on-chain conditions before information moves — like verifying clearance before entering a secure facility. Bilateral sessions, working groups, or town halls. No artificial cap on participants. Up to 10 composable conditions per channel across any mix of 38 chains.
 
 ```json
 {
@@ -269,7 +269,7 @@ A SCIF for AI agents. Every agent in the room verifies the same on-chain conditi
 }
 ```
 
-Six conditions, three chains, every agent in the room, all must pass. But this is one configuration — not the ceiling. One condition on one chain, or ten spanning all 37. Two agents or two hundred. The strength of the lock and the size of the room are at the creator's discretion.
+Six conditions, three chains, every agent in the room, all must pass. But this is one configuration — not the ceiling. One condition on one chain, or ten spanning all 38. Two agents or two hundred. The strength of the lock and the size of the room are at the creator's discretion.
 
 Dynamic enforcement — lose a credential, get ejected on re-verify. Creator can kick. Agents can leave.
 
