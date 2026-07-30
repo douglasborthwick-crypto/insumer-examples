@@ -97,7 +97,7 @@ Note on key versions: every newly created key is **v2** — thresholds go in as 
 ## Three Ways to Authenticate
 
 1. **API key** (default) — `X-API-Key` header. Free tier in one call via `POST /v1/keys/create`.
-2. **x402 pay-per-call** (no key at all) — call `POST /v1/attest`, `/v1/trust`, or `/v1/trust/batch` with no credential headers and you get a 402 quote instead of a 401. Sign the EIP-3009 USDC authorization on Base and retry with the `X-PAYMENT` header. Gasless for the payer, zero signup — the fastest path for an autonomous agent. Dynamic pricing: $0.05–0.10 per attest, $0.15–0.30 per trust profile, $0.15–3.00 per batch.
+2. **x402 pay-per-call** (no key at all) — call `POST /v1/attest`, `/v1/trust`, or `/v1/trust/batch` with no credential headers and you get a 402 quote instead of a 401. Sign the EIP-3009 USDC authorization on Base and retry with the `X-PAYMENT` header. Gasless for the payer, zero signup — the fastest path for an autonomous agent. Dynamic pricing: $0.05–0.10 per attest, $0.15–0.30 per trust profile, $0.15–3.00 per batch. Runnable client: [x402-pay-per-call.js](x402-pay-per-call.js).
 3. **Wallet-signed (SIWE)** — `Authorization: Wallet <base64(JSON({message, signature}))>` from a wallet that holds the Insumer Access pass (soulbound ERC-721 on Base, `0x3E2a408cc6eceba04FF9d04A5B8B05aBa8DD50ce`). Wallet-native keys with no email via `POST /v1/keys/buy`. Drop-in middleware: [`@skyemeta/access`](https://www.npmjs.com/package/@skyemeta/access) on npm.
 
 ## What Wallet Auth Covers
@@ -143,6 +143,8 @@ Every response is signed with ECDSA P-256. Pass the wallet auth result to downst
 | [verify-stellar.js](verify-stellar.js) | Node.js | Stellar: native XLM, USDC trustline, BENJI trustline, fact profile |
 | [verify-sui.js](verify-sui.js) | Node.js | Sui: native SUI, USDC, fact profile with institutional dimension |
 | [x402-condition-gate.js](x402-condition-gate.js) | Node.js | x402 endpoint that gates free access on the payer's wallet eligibility (incl. a self-scaling `ratio_to_amount` option, `?gate=ratio`: hold >= 10x the payment) |
+| [x402-pay-per-call.js](x402-pay-per-call.js) | Node.js | Pays InsumerAPI per call via x402 — no API key: 402 quote → EIP-3009 USDC authorization on Base → `X-PAYMENT` → signed attestation + settlement receipt |
+| [agent-delegation-verify.js](agent-delegation-verify.js) | Node.js | Agent standing on Base: `erc8004_agent` registration check + `erc7710_delegation` validity — signs a real MetaMask Delegation Framework delegation; runs with an API key or keyless via x402 |
 
 ### XRPL
 
