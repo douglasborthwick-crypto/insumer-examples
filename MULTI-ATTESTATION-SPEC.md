@@ -824,11 +824,13 @@ curl "https://rnwy.com/api/mcp-attestation?server={owner}/{repo}"
 
 For each attestation entry in `attestations[]`:
 
+0. **Contain malformed entries.** If an entry is not an object, or is missing `kid`, `alg`, `jwks`, or `sig`, record a failure result for that slot and continue. A malformed entry MUST fail its own slot only; it MUST NOT abort verification of the remaining entries or suppress their verdicts. Per-slot independence includes fault containment, not just signature isolation.
+
 1. **Check expiry.** If `expiry` is present and in the past, move the entry to `expired[]`. If `expiry` is absent, compute expiry from `attestedAt` (or `iat` / `timestamp`) plus the issuer's default TTL. If no timing fields are present, skip expiry check.
 
 2. **Determine signature format.** If `sig` contains exactly two `.` characters, treat it as a compact JWS (JWT). Otherwise, treat it as a base64-encoded raw signature.
 
-3. **Fetch the public key.** HTTP GET the `jwks` URL. Find the key where `kid` matches. Implementations SHOULD cache JWKS responses (recommended: 1 hour TTL).
+3. **Fetch the public key.** HTTP GET the `jwks` URL. Find the key where `kid` matches. Implementations SHOULD cache JWKS responses (recommended: 1 hour TTL). Cache entries MUST be keyed by the JWKS URL (or URL plus `kid`), never by `kid` alone: two issuers may publish the same `kid`, and a cache keyed only on `kid` would let one issuer's key satisfy another issuer's lookup. The reference verifier keys its cache on `jwksUrl:kid`. Note also that the verifier does not derive a JWKS location from `issuer`; the `jwks` URL is taken from the attestation itself, and pinning issuers to expected JWKS URLs is the relying party's job (see 5.1).
 
 4. **Verify the signature.**
 
@@ -853,6 +855,9 @@ For each attestation entry in `attestations[]`:
 function verifyMultiAttestation(payload, requiredTypes):
     results = []
     for att in payload.attestations:
+        if not isObject(att) or missing(att.kid, att.alg, att.jwks, att.sig):
+            results.push({ type: null, status: "failed", error: "malformed entry" })
+            continue
         if isExpired(att):
             results.push({ type: att.type, status: "expired" })
             continue
@@ -885,6 +890,8 @@ Attestation IDs (where provided by the issuer, e.g., InsumerAPI's `id` field or 
 ### 5.3 No Cross-Issuer Trust
 
 Each attestation is independently verifiable. A valid signature from one issuer implies nothing about the validity or trustworthiness of another issuer in the same payload. The payload is a bundle, not a chain of trust.
+
+Independence is testable, and implementations SHOULD test it rather than assume it: strip one issuer's signature and confirm that only that slot fails, that every other slot's verdict is unchanged, and that the stripped slot's absence is never treated as another slot's failure. Independence also includes fault containment (see 4, step 0): one malformed entry failing must never suppress the verdicts of the entries beside it.
 
 ### 5.4 Payload Integrity
 
