@@ -144,6 +144,7 @@ Every response is signed with ECDSA P-256. Pass the wallet auth result to downst
 | [verify-sui.js](verify-sui.js) | Node.js | Sui: native SUI, USDC, fact profile with institutional dimension |
 | [x402-condition-gate.js](x402-condition-gate.js) | Node.js | x402 endpoint that gates free access on the payer's wallet eligibility (incl. a self-scaling `ratio_to_amount` option, `?gate=ratio`: hold >= 10x the payment) |
 | [x402-pay-per-call.js](x402-pay-per-call.js) | Node.js | Pays InsumerAPI per call via x402 — no API key: 402 quote → EIP-3009 USDC authorization on Base → `X-PAYMENT` → signed attestation + settlement receipt |
+| [x402-pay-trust.js](x402-pay-trust.js) | Node.js | Same pay-per-call flow against the trust endpoints: one $0.15 settlement each on `POST /v1/trust` and `/v1/trust/batch`, with a mid-run USDC balance check that skips cleanly instead of failing at the facilitator |
 | [agent-delegation-verify.js](agent-delegation-verify.js) | Node.js | Agent standing on Base: `erc8004_agent` registration check + `erc7710_delegation` validity — signs a real MetaMask Delegation Framework delegation; runs with an API key or keyless via x402 |
 
 ### XRPL
