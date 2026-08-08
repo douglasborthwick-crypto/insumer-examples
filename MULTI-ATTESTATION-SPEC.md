@@ -847,7 +847,7 @@ For each attestation entry in `attestations[]`:
    - For ES256: convert P1363 to DER, verify with SHA-256 and P-256.
    - For EdDSA: verify raw bytes directly against signing input with Ed25519.
 
-5. **Evaluate policy.** After verifying all entries, check whether the relying party's `requiredTypes` are all present and valid. Policy is the relying party's responsibility — the payload carries no policy.
+5. **Evaluate policy and compute the aggregate.** After verifying all entries, compute the top-level `valid`. With `requiredTypes` empty it is the AND over the per-slot verdicts: every entry must be signature-valid and unexpired. With `requiredTypes` non-empty it is the required-types check alone: each required type must have at least one signature-valid, unexpired slot, and failures in unrelated slots do not lower it. The aggregate is a pure function of the per-slot verdicts and the verifier options. Policy is the relying party's responsibility; the payload carries no policy.
 
 ### Pseudocode
 
@@ -870,7 +870,8 @@ function verifyMultiAttestation(payload, requiredTypes):
         results.push({ type: att.type, status: valid ? "verified" : "failed" })
 
     missing = requiredTypes.filter(t => !results.find(r => r.type == t && r.status == "verified"))
-    return { valid: missing.length == 0, results, missing }
+    allValid = results.every(r => r.status == "verified")
+    return { valid: missing.length == 0 && (requiredTypes.length > 0 || allValid), results, missing }
 ```
 
 ---
@@ -892,6 +893,8 @@ Attestation IDs (where provided by the issuer, e.g., InsumerAPI's `id` field or 
 Each attestation is independently verifiable. A valid signature from one issuer implies nothing about the validity or trustworthiness of another issuer in the same payload. The payload is a bundle, not a chain of trust.
 
 Independence is testable, and implementations SHOULD test it rather than assume it: strip one issuer's signature and confirm that only that slot fails, that every other slot's verdict is unchanged, and that the stripped slot's absence is never treated as another slot's failure. Independence also includes fault containment (see 4, step 0): one malformed entry failing must never suppress the verdicts of the entries beside it.
+
+The aggregate `valid` is derived from the per-slot verdicts and is an input to none of them: recomputing it from those verdicts and the verifier options (see 4, step 5) MUST reproduce the emitted value. An aggregate that cannot be reproduced from the slots carries state the slots do not, which is exactly the channel this section exists to exclude.
 
 ### 5.4 Payload Integrity
 
