@@ -285,6 +285,20 @@ async function verifyMultiAttestation(payload, options) {
       };
     }
 
+    // Spec section 4 step 0: a structurally incomplete entry is malformed,
+    // classified before the expiry check ever runs.
+    if (!att.kid || !att.alg || !att.jwks || !att.sig) {
+      return {
+        issuer: att.issuer || null,
+        type: att.type || null,
+        kid: att.kid || null,
+        signatureValid: false,
+        expired: false,
+        verifiedAt: new Date().toISOString(),
+        error: "Missing kid, alg, jwks, or sig",
+      };
+    }
+
     const result = {
       issuer: att.issuer,
       type: att.type,
