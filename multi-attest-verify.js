@@ -269,8 +269,22 @@ async function verifyMultiAttestation(payload, options) {
 
   const results = [];
 
-  // Verify each attestation in parallel
+  // Verify each attestation in parallel. Slot independence is the point: a
+  // malformed or throwing entry must fail its own slot only, and must never
+  // suppress the verdicts of the others.
   const verifications = payload.attestations.map(async (att) => {
+    if (!att || typeof att !== "object") {
+      return {
+        issuer: null,
+        type: null,
+        kid: null,
+        signatureValid: false,
+        expired: false,
+        verifiedAt: new Date().toISOString(),
+        error: "Invalid attestation entry: expected an object",
+      };
+    }
+
     const result = {
       issuer: att.issuer,
       type: att.type,
@@ -299,8 +313,26 @@ async function verifyMultiAttestation(payload, options) {
     return result;
   });
 
-  const settled = await Promise.all(verifications);
-  results.push(...settled);
+  // allSettled, not all: an unexpected throw inside one slot is contained to
+  // that slot instead of rejecting the whole call and returning no verdicts.
+  const settled = await Promise.allSettled(verifications);
+  results.push(
+    ...settled.map((s) =>
+      s.status === "fulfilled"
+        ? s.value
+        : {
+            issuer: null,
+            type: null,
+            kid: null,
+            signatureValid: false,
+            expired: false,
+            verifiedAt: new Date().toISOString(),
+            error:
+              "Verification threw: " +
+              (s.reason && s.reason.message ? s.reason.message : String(s.reason)),
+          }
+    )
+  );
 
   // Check required types
   const missingTypes = [];
