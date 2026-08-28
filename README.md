@@ -171,7 +171,7 @@ curl -s -X POST https://api.insumermodel.com/v1/attest \
 
 EVM Solidity contracts that consume InsumerAPI's off-chain signed attestations on-chain. The off-chain primitive issues a signed verdict over a wallet's condition set; these contracts verify the signature against the published JWKS via the RIP-7212 `P256VERIFY` precompile (`0x0100`), then expose a verifiable result to a consumer surface. Same family across three ERC consumer specs — one primitive, three consumer interfaces.
 
-Live on chains where RIP-7212 is available: Base, Optimism, Arbitrum, Polygon, Scroll, ZKsync, Celo. Issuer JWKS: `https://api.insumermodel.com/.well-known/jwks.json` (kid `insumer-attest-v1`, P-256 / ES256).
+Live on chains where RIP-7212 is available: Base, Optimism, Arbitrum, Polygon, Scroll, ZKsync, Celo. Issuer JWKS: `https://api.insumermodel.com/.well-known/jwks.json` (P-256 / ES256; the three published `kid`s resolve to the same key, so the contracts verify against one set of coordinates regardless of signing scheme).
 
 | File | Spec | Role |
 |------|------|------|

@@ -25,7 +25,7 @@ This format emerged from convergence across ten independent issuers contributing
     {
       "issuer": "https://api.insumermodel.com",
       "type": "wallet_state",
-      "kid": "insumer-attest-v1",
+      "kid": "insumer-attest-v2",
       "alg": "ES256",
       "jwks": "https://insumermodel.com/.well-known/jwks.json",
       "signed": { },
@@ -41,7 +41,7 @@ This format emerged from convergence across ten independent issuers contributing
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `v` | integer | MUST | Format version. Currently `1`. |
+| `v` | integer | MUST | Payload format version. Currently `1`. Distinct from an issuer's signing-scheme version, which each attestation carries in its own `kid`. |
 | `attestations` | array | MUST | Active, unexpired attestation entries. |
 | `expired` | array | SHOULD | Attestation entries past their TTL. Separated from `attestations` so relying parties can distinguish stale data without re-checking expiry. |
 
@@ -154,9 +154,11 @@ Privacy-preserving on-chain verification. Returns signed booleans. No balances e
 |----------|-------|
 | Issuer URI | `https://api.insumermodel.com` |
 | Algorithm | ES256 (ECDSA P-256) |
-| Key ID | `insumer-attest-v1` |
+| Key ID | `insumer-attest-v2` (see below) |
 | JWKS | `https://insumermodel.com/.well-known/jwks.json` |
 | Also | `GET /v1/jwks` (API endpoint, 24h cache) |
+
+The JWKS publishes three key IDs over the same P-256 key: `insumer-attest-v1` (legacy attest and trust), `insumer-attest-v2` (v2 attest), and `insumer-trust-v2` (v2 trust). Every key created on or after the v2 rollout is v2. The `kid` on each response selects both the key and the signing scheme, so a verifier reads it rather than assuming one.
 
 **Getting started:** Free API key, no credit card. Returns the key immediately.
 
