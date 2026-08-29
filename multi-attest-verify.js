@@ -140,6 +140,56 @@ function p1363ToDer(sig, keySize) {
 }
 
 /**
+ * An entry carries its payload one of two ways and never both: inside a compact
+ * JWS, or as the `signed` object a raw signature covers. A JWS with an object
+ * beside it is malformed — that object bears no signature, and a relying party
+ * reading claims from it is reading whatever the sender wrote. Spec section 4,
+ * step 0.
+ *
+ * Comparing `signed` against the JWT payload rather than rejecting the entry is
+ * not a control a verifier here can enforce, because the relationship between
+ * the two is issuer-specific. For APS the object is a strict subset of its own
+ * JWS payload and the comparison is well defined; for InsumerAPI the JWT is a
+ * different projection of the attestation and there is nothing to compare. This
+ * format is deliberately registry-free — section 1, no coordination between
+ * issuers — so a verifier cannot know which convention a given issuer follows.
+ * A check that is meaningful for some issuers and meaningless for others has
+ * only one safe fallback in the meaningless case, which is to accept, and that
+ * reinstates the hole. Rejection is the only rule enforceable uniformly.
+ */
+function isCompactJWS(sig) {
+  return typeof sig === "string" && sig.split(".").length === 3;
+}
+
+/**
+ * The `expiry` an envelope entry should carry when its payload is a JWS.
+ *
+ * A JWS entry has `signed: null`, so there is no `attestedAt` beside the
+ * signature for isExpired to fall back to, and the JWT's own `exp` sits inside
+ * the signature where isExpired does not look. Spec section 3, the `expiry`
+ * row: an entry in that form SHOULD carry `expiry`, or a relying party has no
+ * freshness signal at all. Returns undefined for a token with no `exp`, which
+ * leaves the entry exactly as it would have been.
+ */
+function jwsExpiry(token) {
+  if (!isCompactJWS(token)) return undefined;
+  try {
+    const payload = JSON.parse(base64urlDecode(token.split(".")[1]).toString());
+    if (typeof payload.exp !== "number") return undefined;
+    return new Date(payload.exp * 1000).toISOString();
+  } catch (e) {
+    return undefined;
+  }
+}
+
+function hasStapledPayload(sig, signed) {
+  return isCompactJWS(sig) && signed !== null && signed !== undefined;
+}
+
+const STAPLED_PAYLOAD_ERROR =
+  "`signed` must be null when `sig` is a compact JWS";
+
+/**
  * Verify a single attestation's signature.
  *
  * For ES256 (P1363 base64): decode base64, convert P1363→DER, verify with SHA-256.
@@ -153,11 +203,16 @@ async function verifySignature(attestation) {
     return { valid: false, error: "Missing kid, alg, jwks, or sig" };
   }
 
+  // verifyMultiAttestation classifies this at step 0, before expiry. Repeated
+  // here because verifySignature is exported and callable on its own.
+  if (hasStapledPayload(sig, signed)) {
+    return { valid: false, error: STAPLED_PAYLOAD_ERROR };
+  }
+
   try {
     const publicKey = await getPublicKey(jwks, kid, alg);
 
-    // Check if sig looks like a JWT (three dot-separated parts)
-    if (typeof sig === "string" && sig.split(".").length === 3) {
+    if (isCompactJWS(sig)) {
       // JWT format — verify the whole JWT
       const parts = sig.split(".");
       const signingInput = parts[0] + "." + parts[1];
@@ -299,6 +354,21 @@ async function verifyMultiAttestation(payload, options) {
       };
     }
 
+    // Also step 0: an unsigned object stapled beside a JWS. Classified here
+    // with the other malformed entries rather than at the signature check, so a
+    // stapled entry is refused whether or not it is also stale.
+    if (hasStapledPayload(att.sig, att.signed)) {
+      return {
+        issuer: att.issuer || null,
+        type: att.type || null,
+        kid: att.kid || null,
+        signatureValid: false,
+        expired: false,
+        verifiedAt: new Date().toISOString(),
+        error: STAPLED_PAYLOAD_ERROR,
+      };
+    }
+
     const result = {
       issuer: att.issuer,
       type: att.type,
@@ -401,6 +471,7 @@ async function main() {
               label: "SHIB holder",
             },
           ],
+          format: "jwt",
         });
         const req = https.request(
           "https://api.insumermodel.com/v1/attest",
@@ -425,20 +496,15 @@ async function main() {
       });
 
       if (res.ok && res.data) {
-        const { attestation, sig, kid } = res.data;
+        const { attestation, jwt, kid } = res.data;
         insumerAttestation = {
           issuer: "https://api.insumermodel.com",
           type: "wallet_state",
           kid: kid,
           alg: "ES256",
           jwks: "https://insumermodel.com/.well-known/jwks.json",
-          signed: {
-            id: attestation.id,
-            pass: attestation.pass,
-            results: attestation.results,
-            attestedAt: attestation.attestedAt,
-          },
-          sig: sig,
+          signed: null, // JWT format — payload is in the JWS
+          sig: jwt,
           expiry: attestation.expiresAt,
         };
         console.log(
@@ -488,8 +554,9 @@ async function main() {
         kid: maiat.kid || "maiat-trust-v1",
         alg: "ES256",
         jwks: maiat.jwks || "https://app.maiat.io/.well-known/jwks.json",
-        signed: maiat.payload,
-        sig: maiat.token, // JWT format
+        signed: null, // JWT format — payload is in the JWS
+        sig: maiat.token,
+        expiry: jwsExpiry(maiat.token),
       };
       console.log("[+] Maiat: fetched (score: " + maiat.payload?.score + ")");
     } else {
@@ -546,8 +613,9 @@ async function main() {
         kid: aps.kid,
         alg: aps.alg,
         jwks: aps.jwks,
-        signed: aps.signed,
+        signed: null, // JWT format — payload is in the JWS
         sig: aps.jws, // APS returns "jws", verifier expects "sig"
+        expiry: jwsExpiry(aps.jws),
       };
       console.log("[+] APS: fetched (grade: " + aps.signed?.grade + ", " + aps.signed?.grade_label + ")");
     } else {

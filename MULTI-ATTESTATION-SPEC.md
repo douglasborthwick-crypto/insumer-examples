@@ -54,9 +54,9 @@ This format emerged from convergence across ten independent issuers contributing
 | `kid` | string | MUST | Key ID for JWKS lookup. |
 | `alg` | string | MUST | Signing algorithm. One of `ES256`, `EdDSA`. |
 | `jwks` | string (URL) | MUST | JWKS endpoint where the public key for `kid` can be fetched. |
-| `signed` | object \| null | CONDITIONAL | The signed payload object. MUST be present when `sig` is a raw signature. When `sig` is a compact JWS the payload is embedded in the JWT and this field is not verified, so it SHOULD be `null`: an object carried alongside a JWS bears no signature, and a relying party that reads claims from it is reading unsigned data. An issuer whose signature covers anything other than the serialization of this object, a domain-separated preimage for example, MUST use the compact JWS form: the raw form verifies over `signed` itself and cannot represent such a signature. |
+| `signed` | object \| null | CONDITIONAL | The signed payload object. MUST be present when `sig` is a raw signature. When `sig` is a compact JWS the payload is embedded in the JWT and this field is not verified, so it MUST be `null`: an object carried alongside a JWS bears no signature, and a relying party that reads claims from it is reading unsigned data. A verifier MUST refuse such an entry as malformed rather than verify the JWS and report success, since a verifier that returns before examining `signed` reports a valid signature over an object the signature does not cover. Matching `signed` against the JWT payload instead is not a general alternative. The relationship between the two is issuer-specific: for some issuers the object is a subset of the JWS payload and the comparison is well defined, while for others the JWT is a different projection of the attestation and there is nothing to compare. Because this format requires no coordination between issuers, a verifier cannot know which convention applies to an entry it is handed, and a check that is meaningless for some issuers can only fall back to accepting them, which reinstates the problem. Rejection is the one rule that holds uniformly. Note for integrators: several issuers return the JWS and its decoded payload as separate fields of the same API response. Carry only the JWS into the entry and set `signed` to `null` — nothing is lost, since decoding the JWS recovers the object. An issuer whose signature covers anything other than the serialization of this object, a domain-separated preimage for example, MUST use the compact JWS form: the raw form verifies over `signed` itself and cannot represent such a signature. |
 | `sig` | string | MUST | Either a base64-encoded raw signature (P1363 format for ES256, raw bytes for EdDSA) or a compact JWS string (three dot-separated base64url segments). |
-| `expiry` | string (ISO 8601) | SHOULD | Expiration timestamp. If absent, relying parties SHOULD apply a default TTL of 30 minutes from `attestedAt` / `iat` / `timestamp` in the signed payload. That fallback is unavailable on an entry whose `sig` is a compact JWS and whose `signed` is `null`, since there is no payload object beside the signature to read a timestamp from and the JWT's own `exp` sits inside the signature rather than beside it. An entry in that form SHOULD carry `expiry`, because without it a relying party has no freshness signal at all. |
+| `expiry` | string (ISO 8601) | SHOULD | Expiration timestamp. If absent, relying parties SHOULD apply a default TTL of 30 minutes from `attestedAt` / `iat` / `timestamp` in the signed payload. That fallback is unavailable on an entry whose `sig` is a compact JWS, where `signed` is necessarily `null`, since there is no payload object beside the signature to read a timestamp from and the JWT's own `exp` sits inside the signature rather than beside it. An entry in that form SHOULD carry `expiry`, because without it a relying party has no freshness signal at all. |
 
 ### Design Decisions
 
@@ -64,7 +64,7 @@ This format emerged from convergence across ten independent issuers contributing
 - **`requiredTypes` belongs in verifier configuration, not in the payload.** The payload is a neutral bundle; policy is the relying party's concern.
 - **Only verifiable entries appear in `attestations`.** Unsigned or unverifiable data MUST NOT be included.
 - **Self-describing entries.** Each attestation carries its own `alg`, `kid`, and `jwks`. No shared key registry, no trust anchors beyond JWKS.
-- **Signature format is polymorphic.** If `sig` contains exactly two dots, it is a compact JWS. Otherwise, it is a base64-encoded raw signature over `JSON.stringify(signed)`.
+- **Signature format is polymorphic, and the two forms are exclusive.** If `sig` contains exactly two dots, it is a compact JWS. Otherwise, it is a base64-encoded raw signature over `JSON.stringify(signed)`. An entry carries one form or the other, never both: a JWS with a non-null `signed` is malformed, because the object beside it is unsigned data in a field a relying party reads as attested.
 
 ### Reference Implementation Criteria
 
@@ -828,7 +828,7 @@ curl "https://rnwy.com/api/mcp-attestation?server={owner}/{repo}"
 
 For each attestation entry in `attestations[]`:
 
-0. **Contain malformed entries.** If an entry is not an object, or is missing `kid`, `alg`, `jwks`, or `sig`, record a failure result for that slot and continue. A malformed entry MUST fail its own slot only; it MUST NOT abort verification of the remaining entries or suppress their verdicts. Per-slot independence includes fault containment, not just signature isolation.
+0. **Contain malformed entries.** If an entry is not an object, or is missing `kid`, `alg`, `jwks`, or `sig`, record a failure result for that slot and continue. The same applies to an entry whose `sig` is a compact JWS and whose `signed` is not `null`: verify nothing on it. The JWS path never reads `signed`, so verifying the signature and returning would report a valid signature while an unsigned object sits in a field relying parties read claims from. Classifying it here rather than at step 4 is deliberate — it is a defect in the entry's form, knowable before any key is fetched, and it is refused whether or not the entry is also stale. A malformed entry MUST fail its own slot only; it MUST NOT abort verification of the remaining entries or suppress their verdicts. Per-slot independence includes fault containment, not just signature isolation.
 
 1. **Check expiry.** If `expiry` is present and in the past, move the entry to `expired[]`. If `expiry` is absent, compute expiry from `attestedAt` (or `iat` / `timestamp`) plus the issuer's default TTL. If no timing fields are present, skip expiry check.
 
@@ -861,6 +861,9 @@ function verifyMultiAttestation(payload, requiredTypes):
     for att in payload.attestations:
         if not isObject(att) or missing(att.kid, att.alg, att.jwks, att.sig):
             results.push({ type: null, status: "failed", error: "malformed entry" })
+            continue
+        if isJWT(att.sig) and att.signed != null:
+            results.push({ type: att.type, status: "failed", error: "malformed entry" })
             continue
         if isExpired(att):
             results.push({ type: att.type, status: "expired" })

@@ -1,6 +1,6 @@
 # Multi-attestation envelope fixtures
 
-Seven envelopes, each paired with the result a correct verifier must produce. They test
+Eight envelopes, each paired with the result a correct verifier must produce. They test
 **composition**, not a single signature: whether one bad entry changes any other entry's
 verdict, and whether the aggregate is reproducible from the per-slot results and the options
 the verifier ran under.
@@ -26,6 +26,7 @@ Uses `../../multi-attest-verify.js`, the reference verifier for the payload form
 | E05 | Required type no slot carries | `missingRequired` names it |
 | E06 | Same envelope with freshness checked | expired, signature never examined |
 | E07 | E01 with slot 0's `kid` not in the JWKS | slot 0 key unresolved, **slot 1 unchanged** |
+| E08 | E01 with an unsigned object stapled onto slot 0 beside its valid JWS | slot 0 malformed, **slot 1 unchanged** |
 
 ## What each pair is for
 
@@ -35,10 +36,21 @@ failure, an entry that is complete and does not verify. A verifier reporting bot
 outcome cannot tell a malformed envelope from a tampered one, and those call for different
 responses.
 
+**E08: a valid signature is not a valid entry.** Slot 0's JWS is genuine and verifies. What
+is wrong is the object stapled beside it, which no signature covers, claiming a different
+attestation id and a threshold a millionfold above the signed one. A verifier that checks the
+signature and returns reports `signatureValid: true` with `error: null` over data the attacker
+wrote, and a relying party reading claims from `signed` rather than from the JWT consumes it.
+The entry is refused at step 0, with the malformed entries, rather than at the signature check:
+the defect is in the entry's form, knowable before any key is fetched, and refusing it there
+means it is refused whether or not the entry is also stale. This is the one fixture whose
+failure mode is acceptance rather than rejection, which is why it exists.
+
 **E01 against E02 and E03: slot independence.** Each entry carries its own `kid`, `jwks` and
 signature, and nothing signs the envelope itself. So breaking slot 0 must leave slot 1 exactly
 as it was. `run.mjs` asserts this comparatively rather than trusting each fixture's own expected
-block: it runs all three and requires slot 1's verdict to be byte-identical across them. That
+block: it runs E01 beside every fixture that is E01 with slot 0 altered — E02, E03, E07 and
+E08 — and requires slot 1's verdict to be byte-identical across all five. That
 comparison is the test. If it ever fails, the envelope has grown a dependency between issuers
 that having no envelope-level signature was meant to prevent.
 
@@ -60,11 +72,16 @@ from a fabricated one has to read `error`, not the boolean. The order errs towar
 
 ## Two things that will look odd and are not
 
-**E01 to E05 and E07 pin `checkExpiry: false`.** Any published fixture is permanently past its
-window, so with freshness on, expiry would swamp every other property and all seven would read
-the same. Switching it off lets the composition properties be seen on their own, and E06 covers
-the default behaviour deliberately. On E07 that pinning is load-bearing rather than cosmetic: the
-freshness short-circuit described above would mask the unresolved key entirely. This is the same fact the parent directory's README describes:
+**E01 to E05, E07 and E08 pin `checkExpiry: false`.** Any published fixture is permanently past
+its window, so with freshness on, expiry would swamp every other property and six of the eight
+would read alike. Switching it off lets the composition properties be seen on their own, and E06
+covers the default behaviour deliberately. On E07 that pinning is load-bearing rather than
+cosmetic: the freshness short-circuit described above would mask the unresolved key entirely.
+
+The two that read differently with freshness on are E02 and E08, and for the same reason: both
+are classified at step 0, which runs before expiry, so they report their own defect rather than
+staleness either way. Their pinning is for comparability with the fixtures they are measured
+against, not because it changes their verdict. This is the same fact the parent directory's README describes:
 an attestation records what was true at a named block and does not decay, while expiry is a
 freshness policy for acting on it.
 
@@ -78,6 +95,6 @@ an entry signed by their own key against their own JWKS.
 ## A note on the entry form
 
 Both slots carry the attestation as a compact JWS, with `signed` set to `null`, which the
-specification allows. That is the correct form for a v2 attestation. The raw form verifies a
+specification requires. That is the correct form for a v2 attestation. The raw form verifies a
 signature over the JSON of `signed`, and a v2 attestation is signed over a domain-separated
 preimage rather than over that object, so it cannot be represented faithfully that way.

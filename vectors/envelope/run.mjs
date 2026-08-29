@@ -61,12 +61,13 @@ for (const f of files) {
   }
 }
 // The strip test's actual claim is comparative: slot 1's verdict must be
-// identical in E01, E02 and E03. Checking each fixture against its own expected
-// block does not assert that on its own, so assert it directly.
+// identical in every fixture that is E01 with slot 0 altered. Checking each
+// fixture against its own expected block does not assert that on its own, so
+// assert it directly.
 const slot1 = {};
 for (const f of files) {
   const fx = JSON.parse(readFileSync(join(here, f), "utf8"));
-  if (!/^E0[1237]-/.test(f)) continue;
+  if (!/^E0[12378]-/.test(f)) continue;
   const out = await verifyMultiAttestation(fx.payload, fx.options ?? {});
   slot1[fx.fixture] = JSON.stringify({
     signatureValid: out.results[1].signatureValid,
