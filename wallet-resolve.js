@@ -120,8 +120,8 @@ async function fetchInsumerAPI(wallet, solanaWallet, xrplWallet, bitcoinWallet) 
   if (xrplWallet) body.xrplWallet = xrplWallet;
   if (bitcoinWallet) body.bitcoinWallet = bitcoinWallet;
 
-  // (a) Chain context. Used internally to steer the fan-out; never signed into
-  //     the envelope, so its signature form does not matter here.
+  // (a) Chain context. Used internally to steer the fan-out. It is not carried
+  //     as an entry, so its signature form does not matter here.
   const data = await fetchJSON("https://api.insumermodel.com/v1/trust", {
     method: "POST", headers, body: JSON.stringify(body)
   });
