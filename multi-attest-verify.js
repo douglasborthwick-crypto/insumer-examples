@@ -162,21 +162,41 @@ function isCompactJWS(sig) {
 }
 
 /**
- * The `expiry` an envelope entry should carry when its payload is a JWS.
+ * The expiry of a JWS, read from the token itself.
+ *
+ * Used twice: by isExpired, so the verifier can age a JWS entry with no
+ * entry-level `expiry` beside it, and by the adapters below, so the entries they
+ * build carry the `expiry` the spec asks for and are self-describing to other
+ * verifiers.
  *
  * A JWS entry has `signed: null`, so there is no `attestedAt` beside the
- * signature for isExpired to fall back to, and the JWT's own `exp` sits inside
- * the signature where isExpired does not look. Spec section 3, the `expiry`
- * row: an entry in that form SHOULD carry `expiry`, or a relying party has no
- * freshness signal at all. Returns undefined for a token with no `exp`, which
- * leaves the entry exactly as it would have been.
+ * signature for isExpired to fall back to, and the token's own expiry sits
+ * inside the signature where isExpired does not look. Spec section 3, the
+ * `expiry` row: an entry in that form SHOULD carry `expiry`, or a relying party
+ * has no freshness signal at all.
+ *
+ * Issuers here spell that expiry two ways, so read both. AgentID, APS and
+ * Revettr use the registered numeric `exp`; AgentGraph carries an ISO
+ * `expiresAt` and no `exp` at all. Reading only `exp` would return undefined
+ * for the second group, which reads as a freshness fix and is not one.
+ *
+ * Returns undefined when the token carries neither, leaving the entry exactly
+ * as it would have been.
  */
 function jwsExpiry(token) {
   if (!isCompactJWS(token)) return undefined;
   try {
     const payload = JSON.parse(base64urlDecode(token.split(".")[1]).toString());
-    if (typeof payload.exp !== "number") return undefined;
-    return new Date(payload.exp * 1000).toISOString();
+    if (typeof payload.exp === "number") {
+      return new Date(payload.exp * 1000).toISOString();
+    }
+    const iso = payload.expiresAt || payload.expires_at;
+    if (typeof iso === "string") {
+      const parsed = new Date(iso);
+      // isExpired matches on /^\d{4}-/, so normalise rather than pass through.
+      if (!isNaN(parsed.getTime())) return parsed.toISOString();
+    }
+    return undefined;
   } catch (e) {
     return undefined;
   }
@@ -274,19 +294,43 @@ async function verifySignature(attestation) {
  * Check if an attestation has expired.
  */
 function isExpired(attestation) {
-  const { signed, expiry } = attestation;
+  const { signed, expiry, sig } = attestation;
 
   // Check explicit expiry timestamp
   if (expiry && typeof expiry === "string" && !expiry.startsWith("TBD")) {
     const match = expiry.match(/^\d{4}-/);
     if (match) {
-      return new Date(expiry) < new Date();
+      if (new Date(expiry) < new Date()) return true;
     }
   }
 
-  // Check attestedAt + known TTLs
+  // A JWS carries its own expiry inside the signature, where the checks above
+  // and below cannot see it: `signed` is null on a conformant JWS entry, so all
+  // four fallbacks are unavailable and this function would otherwise return
+  // false for every such entry, however old. That is the whole population of
+  // entries the spec's `signed` row now requires, so without this a conformant
+  // JWS entry with no `expiry` beside it is permanently fresh.
+  //
+  // Checked after the entry-level `expiry` rather than instead of it, and only
+  // ever to expire: whichever of the two says expired wins. The envelope is
+  // unsigned, so an entry-level `expiry` can be set by whoever relays it, while
+  // the token's `exp` is inside signature scope. Taking the stricter of the two
+  // means a relayed entry cannot extend a stale attestation.
+  const tokenExpiry = jwsExpiry(sig);
+  if (tokenExpiry) {
+    return new Date(tokenExpiry) < new Date();
+  }
+
+  // Check attestedAt + known TTLs. Issuers spell this field both ways, so read
+  // both: TrustLayer signs `attested_at` and nothing else this list matches, and
+  // reading only the camelCase form left its entries permanently unexpirable —
+  // the spec's own TrustLayer section records the field as present and the
+  // 30-minute consumer default as applicable. `scored_at` is deliberately not
+  // consulted: it is when the background pipeline computed the score, not when
+  // the attestation was made, so ageing against it would report entries stale
+  // that are not.
   const attestedAt =
-    signed?.attestedAt || signed?.timestamp || signed?.iat;
+    signed?.attestedAt || signed?.attested_at || signed?.timestamp || signed?.iat;
   if (!attestedAt) return false;
 
   const attestTime = new Date(attestedAt).getTime();
@@ -640,6 +684,7 @@ async function main() {
         jwks: "https://getagentid.dev/.well-known/jwks.json",
         signed: null, // JWT format
         sig: agentid.header,
+        expiry: jwsExpiry(agentid.header),
       };
       console.log("[+] AgentID: fetched (trust_level: " + agentid.payload?.trust_level + ", " + agentid.payload?.trust_level_label + ")");
     } else {
@@ -664,6 +709,7 @@ async function main() {
         jwks: ag.jwks_url || "https://agentgraph.co/.well-known/jwks.json",
         signed: null, // JWT format — payload is in the JWS
         sig: ag.jws,
+        expiry: jwsExpiry(ag.jws),
       };
       console.log("[+] AgentGraph: fetched (result: " + ag.payload?.scan?.result + ", findings: " + ag.payload?.scan?.findings?.total + ")");
     } else {
@@ -710,6 +756,7 @@ async function main() {
         jwks: sar.jwks || "https://defaultverifier.com/.well-known/jwks.json",
         signed: null, // JWT format
         sig: sar.jws,
+        expiry: jwsExpiry(sar.jws),
       };
       console.log("[+] SAR: fetched (verdict: " + sar.payload?.verdict + ", confidence: " + sar.payload?.confidence + ")");
     } else {
