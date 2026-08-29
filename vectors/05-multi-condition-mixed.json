@@ -1,0 +1,102 @@
+{
+  "vector": "05-multi-condition-mixed",
+  "description": "Two conditions in one attestation, one met and one not.",
+  "note": "Top-level pass is the AND across results, so it is false while results[0].met is true. Each result carries its own evaluatedCondition, conditionHash and anchor.",
+  "options": {},
+  "recompute": [
+    {
+      "canonicalEvaluatedCondition": "{\"chainId\":1,\"contractAddress\":\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\"operator\":\"gte\",\"threshold\":\"1\",\"type\":\"token_balance\"}",
+      "conditionHash": "0x7461826638a23862059da9474fa12054829f694020701491d660395b87df6132",
+      "reproduces": true,
+      "anchor": {
+        "blockNumber": "0x18a8ac6",
+        "blockTimestamp": "2026-08-28T22:25:11.000Z"
+      }
+    },
+    {
+      "canonicalEvaluatedCondition": "{\"chainId\":1,\"contractAddress\":\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\"operator\":\"gte\",\"threshold\":\"1000\",\"type\":\"token_balance\"}",
+      "conditionHash": "0x630c213d362cd4e617261c2475f7b8ad70096ac911db804392305d6cbf70f094",
+      "reproduces": true,
+      "anchor": {
+        "blockNumber": "0x18a8ac6",
+        "blockTimestamp": "2026-08-28T22:25:11.000Z"
+      }
+    }
+  ],
+  "response": {
+    "ok": true,
+    "data": {
+      "attestation": {
+        "id": "ATST-8A3CFEACF915B300",
+        "pass": false,
+        "results": [
+          {
+            "condition": 0,
+            "label": "",
+            "type": "token_balance",
+            "chainId": 1,
+            "met": true,
+            "evaluatedCondition": {
+              "type": "token_balance",
+              "chainId": 1,
+              "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "operator": "gte",
+              "threshold": "1"
+            },
+            "conditionHash": "0x7461826638a23862059da9474fa12054829f694020701491d660395b87df6132",
+            "blockNumber": "0x18a8ac6",
+            "blockTimestamp": "2026-08-28T22:25:11.000Z"
+          },
+          {
+            "condition": 1,
+            "label": "",
+            "type": "token_balance",
+            "chainId": 1,
+            "met": false,
+            "evaluatedCondition": {
+              "type": "token_balance",
+              "chainId": 1,
+              "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "operator": "gte",
+              "threshold": "1000"
+            },
+            "conditionHash": "0x630c213d362cd4e617261c2475f7b8ad70096ac911db804392305d6cbf70f094",
+            "blockNumber": "0x18a8ac6",
+            "blockTimestamp": "2026-08-28T22:25:11.000Z"
+          }
+        ],
+        "passCount": 1,
+        "failCount": 1,
+        "attestedAt": "2026-08-28T22:25:15.015Z",
+        "expiresAt": "2026-08-28T22:55:15.015Z"
+      },
+      "sig": "MXxZ1LBRSR+IWPblUgErcUMjJ3e6SlstVg0qNDIJmPJL1bC0vuGh0lFqbHX7FCCwI+8FGAoI7inUyS2zM+DEMA==",
+      "kid": "insumer-attest-v2"
+    },
+    "meta": {
+      "version": "1.0",
+      "timestamp": "2026-08-28T22:25:15.257Z",
+      "creditsRemaining": 985,
+      "creditsCharged": 1
+    }
+  },
+  "expected": {
+    "checks": {
+      "signature": true,
+      "conditionHashes": true,
+      "freshness": true,
+      "expiry": false
+    },
+    "attestation": {
+      "pass": false,
+      "results": [
+        {
+          "met": true
+        },
+        {
+          "met": false
+        }
+      ]
+    }
+  }
+}

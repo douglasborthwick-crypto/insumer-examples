@@ -1,0 +1,73 @@
+{
+  "vector": "07-non-evm-anchor-bitcoin",
+  "description": "A non-EVM chain: native BTC, gte 1, on the Bitcoin genesis address.",
+  "note": "The anchor is blockHeight and blockHash, not blockNumber, and chainId is the string \"bitcoin\" rather than a number. A verifier that assumes blockNumber will find no anchor here. Verified independently: the blockHash matches the block at that height, and the balance at that block met the threshold.",
+  "options": {},
+  "recompute": [
+    {
+      "canonicalEvaluatedCondition": "{\"chainId\":\"bitcoin\",\"contractAddress\":\"native\",\"operator\":\"gte\",\"threshold\":\"1\",\"type\":\"token_balance\"}",
+      "conditionHash": "0x02a76292b3318a60acced5ed7af6fb9051a3a3acfdbd7d644f471ab13b68a539",
+      "reproduces": true,
+      "anchor": {
+        "blockHeight": 964488,
+        "blockHash": "00000000000000000001cb5fbace37066900714e6c908168a29a30600be7e3c0"
+      }
+    }
+  ],
+  "response": {
+    "ok": true,
+    "data": {
+      "attestation": {
+        "id": "ATST-85BCE5374B7E52D0",
+        "pass": true,
+        "results": [
+          {
+            "condition": 0,
+            "label": "",
+            "type": "token_balance",
+            "chainId": "bitcoin",
+            "met": true,
+            "evaluatedCondition": {
+              "type": "token_balance",
+              "chainId": "bitcoin",
+              "contractAddress": "native",
+              "operator": "gte",
+              "threshold": "1"
+            },
+            "conditionHash": "0x02a76292b3318a60acced5ed7af6fb9051a3a3acfdbd7d644f471ab13b68a539",
+            "blockHeight": 964488,
+            "blockHash": "00000000000000000001cb5fbace37066900714e6c908168a29a30600be7e3c0"
+          }
+        ],
+        "passCount": 1,
+        "failCount": 0,
+        "attestedAt": "2026-08-28T22:55:58.303Z",
+        "expiresAt": "2026-08-28T23:25:58.303Z"
+      },
+      "sig": "/TdrnmegQ+yGnJPTd0sslzN786L2dAGXh1hpUr75DH+ojQxLBC7zpC2Agsg41uEGmXv8aBZVCxZol5j/H2SntA==",
+      "kid": "insumer-attest-v2"
+    },
+    "meta": {
+      "version": "1.0",
+      "timestamp": "2026-08-28T22:55:58.682Z",
+      "creditsRemaining": 999,
+      "creditsCharged": 1
+    }
+  },
+  "expected": {
+    "checks": {
+      "signature": true,
+      "conditionHashes": true,
+      "freshness": true,
+      "expiry": false
+    },
+    "attestation": {
+      "pass": true,
+      "results": [
+        {
+          "met": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "vector": "01-token-balance-met",
+  "description": "A token_balance condition the wallet meets: USDC on Ethereum mainnet, gte 1.",
+  "note": "Held more than the threshold at the anchored block. Re-derived from chain state before publication.",
+  "options": {},
+  "recompute": [
+    {
+      "canonicalEvaluatedCondition": "{\"chainId\":1,\"contractAddress\":\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\"operator\":\"gte\",\"threshold\":\"1\",\"type\":\"token_balance\"}",
+      "conditionHash": "0x7461826638a23862059da9474fa12054829f694020701491d660395b87df6132",
+      "reproduces": true,
+      "anchor": {
+        "blockNumber": "0x18a8ac5",
+        "blockTimestamp": "2026-08-28T22:24:59.000Z"
+      }
+    }
+  ],
+  "response": {
+    "ok": true,
+    "data": {
+      "attestation": {
+        "id": "ATST-E968E5993E8D89A2",
+        "pass": true,
+        "results": [
+          {
+            "condition": 0,
+            "label": "",
+            "type": "token_balance",
+            "chainId": 1,
+            "met": true,
+            "evaluatedCondition": {
+              "type": "token_balance",
+              "chainId": 1,
+              "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              "operator": "gte",
+              "threshold": "1"
+            },
+            "conditionHash": "0x7461826638a23862059da9474fa12054829f694020701491d660395b87df6132",
+            "blockNumber": "0x18a8ac5",
+            "blockTimestamp": "2026-08-28T22:24:59.000Z"
+          }
+        ],
+        "passCount": 1,
+        "failCount": 0,
+        "attestedAt": "2026-08-28T22:25:11.944Z",
+        "expiresAt": "2026-08-28T22:55:11.944Z"
+      },
+      "sig": "B6/KZxcRoJHSJi/Nprr567POnDS7fF2I/+BOQxOvA8BJhMOY6Sy4PK5zbYRkoeGQc27ZyNRXyNSc2jHpXlyByQ==",
+      "kid": "insumer-attest-v2"
+    },
+    "meta": {
+      "version": "1.0",
+      "timestamp": "2026-08-28T22:25:12.116Z",
+      "creditsRemaining": 989,
+      "creditsCharged": 1
+    }
+  },
+  "expected": {
+    "checks": {
+      "signature": true,
+      "conditionHashes": true,
+      "freshness": true,
+      "expiry": false
+    },
+    "attestation": {
+      "pass": true,
+      "results": [
+        {
+          "met": true
+        }
+      ]
+    }
+  }
+}

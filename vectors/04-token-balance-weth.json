@@ -1,0 +1,73 @@
+{
+  "vector": "04-token-balance-weth",
+  "description": "A second 18-decimal token: WETH on Ethereum mainnet, gte 1.",
+  "note": "An 18-decimal token, met at the anchored block.",
+  "options": {},
+  "recompute": [
+    {
+      "canonicalEvaluatedCondition": "{\"chainId\":1,\"contractAddress\":\"0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2\",\"operator\":\"gte\",\"threshold\":\"1\",\"type\":\"token_balance\"}",
+      "conditionHash": "0x38b402b4f01878a8d7e2bc41dc466d31f176fa7560cbfba98c334985446acddc",
+      "reproduces": true,
+      "anchor": {
+        "blockNumber": "0x18a8ac5",
+        "blockTimestamp": "2026-08-28T22:24:59.000Z"
+      }
+    }
+  ],
+  "response": {
+    "ok": true,
+    "data": {
+      "attestation": {
+        "id": "ATST-006F510C9B0D0409",
+        "pass": true,
+        "results": [
+          {
+            "condition": 0,
+            "label": "",
+            "type": "token_balance",
+            "chainId": 1,
+            "met": true,
+            "evaluatedCondition": {
+              "type": "token_balance",
+              "chainId": 1,
+              "contractAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+              "operator": "gte",
+              "threshold": "1"
+            },
+            "conditionHash": "0x38b402b4f01878a8d7e2bc41dc466d31f176fa7560cbfba98c334985446acddc",
+            "blockNumber": "0x18a8ac5",
+            "blockTimestamp": "2026-08-28T22:24:59.000Z"
+          }
+        ],
+        "passCount": 1,
+        "failCount": 0,
+        "attestedAt": "2026-08-28T22:25:14.265Z",
+        "expiresAt": "2026-08-28T22:55:14.265Z"
+      },
+      "sig": "0Cs9bNHHTThcq0dOuw5f96wyknUv8MRVUKXED9F58/K49UdM1eqGy2BbYBp/4pWWY1SbEeJJYuLQjXB697uBDQ==",
+      "kid": "insumer-attest-v2"
+    },
+    "meta": {
+      "version": "1.0",
+      "timestamp": "2026-08-28T22:25:14.411Z",
+      "creditsRemaining": 986,
+      "creditsCharged": 1
+    }
+  },
+  "expected": {
+    "checks": {
+      "signature": true,
+      "conditionHashes": true,
+      "freshness": true,
+      "expiry": false
+    },
+    "attestation": {
+      "pass": true,
+      "results": [
+        {
+          "met": true
+        }
+      ]
+    }
+  }
+}

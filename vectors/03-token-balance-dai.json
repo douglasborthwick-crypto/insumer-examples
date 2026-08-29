@@ -1,0 +1,73 @@
+{
+  "vector": "03-token-balance-dai",
+  "description": "An 18-decimal token: DAI on Ethereum mainnet, gte 1.",
+  "note": "A different decimal scale from vector 01, an 18-decimal token rather than 6.",
+  "options": {},
+  "recompute": [
+    {
+      "canonicalEvaluatedCondition": "{\"chainId\":1,\"contractAddress\":\"0x6B175474E89094C44Da98b954EedeAC495271d0F\",\"operator\":\"gte\",\"threshold\":\"1\",\"type\":\"token_balance\"}",
+      "conditionHash": "0x052a127b5cd5d3b81902e2fd2bf846081df9b93ed437a064681a53ff310e9c2e",
+      "reproduces": true,
+      "anchor": {
+        "blockNumber": "0x18a8ac5",
+        "blockTimestamp": "2026-08-28T22:24:59.000Z"
+      }
+    }
+  ],
+  "response": {
+    "ok": true,
+    "data": {
+      "attestation": {
+        "id": "ATST-D5E77C1D9FFC6506",
+        "pass": true,
+        "results": [
+          {
+            "condition": 0,
+            "label": "",
+            "type": "token_balance",
+            "chainId": 1,
+            "met": true,
+            "evaluatedCondition": {
+              "type": "token_balance",
+              "chainId": 1,
+              "contractAddress": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+              "operator": "gte",
+              "threshold": "1"
+            },
+            "conditionHash": "0x052a127b5cd5d3b81902e2fd2bf846081df9b93ed437a064681a53ff310e9c2e",
+            "blockNumber": "0x18a8ac5",
+            "blockTimestamp": "2026-08-28T22:24:59.000Z"
+          }
+        ],
+        "passCount": 1,
+        "failCount": 0,
+        "attestedAt": "2026-08-28T22:25:13.600Z",
+        "expiresAt": "2026-08-28T22:55:13.600Z"
+      },
+      "sig": "3uZlNrlUIH18okj39b+YT7JV2GGW2U4DErbrdpss//OsiDbCbWLZKjLjsHwXD71wTHywxg8kbqy3/ZN5nBXQcg==",
+      "kid": "insumer-attest-v2"
+    },
+    "meta": {
+      "version": "1.0",
+      "timestamp": "2026-08-28T22:25:13.775Z",
+      "creditsRemaining": 987,
+      "creditsCharged": 1
+    }
+  },
+  "expected": {
+    "checks": {
+      "signature": true,
+      "conditionHashes": true,
+      "freshness": true,
+      "expiry": false
+    },
+    "attestation": {
+      "pass": true,
+      "results": [
+        {
+          "met": true
+        }
+      ]
+    }
+  }
+}

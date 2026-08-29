@@ -1,0 +1,73 @@
+{
+  "vector": "06-second-chain-base",
+  "description": "The same condition type on a second EVM chain: USDC on Base, gte 1.",
+  "note": "Anchoring is per result, so a multi-chain attestation carries a different block per chain.",
+  "options": {},
+  "recompute": [
+    {
+      "canonicalEvaluatedCondition": "{\"chainId\":8453,\"contractAddress\":\"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\",\"operator\":\"gte\",\"threshold\":\"1\",\"type\":\"token_balance\"}",
+      "conditionHash": "0x6a8a61cc5cda4d3e25efb9643270a5d70ff32530ad146bc607114cc2e0bb2c17",
+      "reproduces": true,
+      "anchor": {
+        "blockNumber": "0x303d6f4",
+        "blockTimestamp": "2026-08-28T22:25:15.000Z"
+      }
+    }
+  ],
+  "response": {
+    "ok": true,
+    "data": {
+      "attestation": {
+        "id": "ATST-16212C3E543FD730",
+        "pass": true,
+        "results": [
+          {
+            "condition": 0,
+            "label": "",
+            "type": "token_balance",
+            "chainId": 8453,
+            "met": true,
+            "evaluatedCondition": {
+              "type": "token_balance",
+              "chainId": 8453,
+              "contractAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "operator": "gte",
+              "threshold": "1"
+            },
+            "conditionHash": "0x6a8a61cc5cda4d3e25efb9643270a5d70ff32530ad146bc607114cc2e0bb2c17",
+            "blockNumber": "0x303d6f4",
+            "blockTimestamp": "2026-08-28T22:25:15.000Z"
+          }
+        ],
+        "passCount": 1,
+        "failCount": 0,
+        "attestedAt": "2026-08-28T22:25:15.917Z",
+        "expiresAt": "2026-08-28T22:55:15.917Z"
+      },
+      "sig": "X8lQ52Xme1wvloCjcODpYlDlef5auVQbB6xzsYiLXzNeQHVbW3bpoQkYMHYv76IJLlT9tbqhQcWxJfG5ACIoDA==",
+      "kid": "insumer-attest-v2"
+    },
+    "meta": {
+      "version": "1.0",
+      "timestamp": "2026-08-28T22:25:16.069Z",
+      "creditsRemaining": 984,
+      "creditsCharged": 1
+    }
+  },
+  "expected": {
+    "checks": {
+      "signature": true,
+      "conditionHashes": true,
+      "freshness": true,
+      "expiry": false
+    },
+    "attestation": {
+      "pass": true,
+      "results": [
+        {
+          "met": true
+        }
+      ]
+    }
+  }
+}
