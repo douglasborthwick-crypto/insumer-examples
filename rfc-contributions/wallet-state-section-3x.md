@@ -141,7 +141,7 @@ curl -s -X POST https://api.insumermodel.com/v1/attest \
   }'
 ```
 
-ES256 (P-256), `kid: insumer-attest-v1`, JWKS at the standard path. The `POST /v1/trust` endpoint returns a P1363 base64 signature over `JSON.stringify(trust)` (88 base64 characters, 64 raw bytes). The `POST /v1/attest` endpoint returns both the raw signature and a compact JWS in the `jwt` field, with the header `{"alg":"ES256","typ":"JWT","kid":"insumer-attest-v1"}` and claims `pass`, `conditionHash[]`, `blockNumber`, `blockTimestamp`, `results[]`, `iss`, `sub`, `jti`, `iat`, `exp`. The `sub` claim is the wallet address — that is how the category stays wallet-bound inside signature scope.
+ES256 (P-256), JWKS at the standard path, with the signing key selected by the `kid` on the response — `insumer-attest-v2` for `/v1/attest` and `insumer-trust-v2` for `/v1/trust` on any key issued since 2026-06-10, `insumer-attest-v1` for keys created before it. The `POST /v1/trust` endpoint returns a P1363 base64 signature over `JSON.stringify(trust)` (88 base64 characters, 64 raw bytes). The `POST /v1/attest` endpoint returns both the raw signature and a compact JWS in the `jwt` field, with the header `{"alg":"ES256","typ":"JWT","kid":"insumer-attest-v2"}` and claims `pass`, `conditionHash[]`, `blockNumber`, `blockTimestamp`, `results[]`, `iss`, `sub`, `jti`, `iat`, `exp`. The `sub` claim is the wallet address — that is how the category stays wallet-bound inside signature scope.
 
 ## TTL semantics for `wallet_state`
 
@@ -178,7 +178,7 @@ InsumerAPI is live and can serve as a reference implementation for the `wallet_s
 | DID | `did:web:insumermodel.com` |
 | JWKS | `https://insumermodel.com/.well-known/jwks.json` |
 | Algorithm | ES256 (P-256) |
-| Key ID | `insumer-attest-v1` |
+| Key ID | `insumer-attest-v2` (attest) / `insumer-trust-v2` (trust) / `insumer-attest-v1` (pre-2026-06-10 keys) |
 | Free key endpoint | `POST https://api.insumermodel.com/v1/keys/create` — returns the key immediately, no credit card |
 | Per-condition attestation | `POST https://api.insumermodel.com/v1/attest` — caller-supplied conditions, returns raw sig + compact JWS |
 | Curated wallet profile | `POST https://api.insumermodel.com/v1/trust` — EVM wallet, 4 dimensions (stablecoins, NFTs, governance, staking), 36 default conditions |

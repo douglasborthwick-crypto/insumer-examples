@@ -231,7 +231,7 @@ async function bilateral() {
   console.log(`  Channel: ${channelId}`);
   console.log(`  Session: ${sessionId}`);
   console.log(`  Both wallets proved control and were attested.`);
-  console.log(`  Attestation signatures: ECDSA ES256 (kid: insumer-attest-v1)`);
+  console.log(`  Attestation signatures: ECDSA ES256 (kid: insumer-attest-v2)`);
   console.log(`  JWKS: https://insumermodel.com/.well-known/jwks.json`);
   console.log(`  Conditions hash: ${conditionsHash}`);
   console.log("");
@@ -386,7 +386,7 @@ async function multiparty() {
   console.log(`  Session: ${sessionId}`);
   console.log(`  Capacity: 5 (3 joined, 1 kicked, 1 left)`);
   console.log(`  Every action signed by the wallet whose authority it invoked.`);
-  console.log(`  Attestation signatures: ECDSA ES256 (kid: insumer-attest-v1)`);
+  console.log(`  Attestation signatures: ECDSA ES256 (kid: insumer-attest-v2)`);
   console.log(`  JWKS: https://insumermodel.com/.well-known/jwks.json`);
   console.log("");
   console.log("Multi-party session: agents prove control, join, get kicked, or leave.");

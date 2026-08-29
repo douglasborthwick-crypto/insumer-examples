@@ -108,7 +108,11 @@ async function fetchInsumerAPI(wallet, solanaWallet, xrplWallet, bitcoinWallet) 
     attestation: {
       issuer: "https://api.insumermodel.com",
       type: "wallet_state",
-      kid: kid || "insumer-attest-v1",
+      // Carry the kid the issuer returned. Do not substitute a default: this is a
+      // /v1/trust response (insumer-trust-v2 on a current key), the envelope spec
+      // makes kid a MUST, and the verifier already refuses an entry without one.
+      // Fabricating a kid would name a scheme the signature was not produced under.
+      kid: kid,
       alg: "ES256",
       jwks: "https://insumermodel.com/.well-known/jwks.json",
       signed: trust,
