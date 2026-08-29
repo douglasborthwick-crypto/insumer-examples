@@ -110,6 +110,12 @@ address used throughout the InsumerAPI examples. The Bitcoin vector uses the gen
 `1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa`. Both are public, permanent and hold real balances, so
 the vectors disclose nothing that was not already public.
 
+## The envelope fixtures
+
+`envelope/` holds fixtures for the multi-attestation envelope in `MULTI-ATTESTATION-SPEC.md`.
+Those test composition, whether one bad entry changes another entry's verdict, rather than
+whether a single attestation is genuine.
+
 ## Regenerating
 
 These are frozen artifacts, not a live test suite. To produce a fresh equivalent, call

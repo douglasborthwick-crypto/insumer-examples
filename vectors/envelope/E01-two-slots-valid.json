@@ -1,0 +1,56 @@
+{
+  "fixture": "E01-two-slots-valid",
+  "description": "Two independently signed attestations in one envelope, both signatures valid.",
+  "note": "The baseline every other fixture is compared against. Each entry carries its own kid, jwks and signature; there is no signature over the envelope itself. Freshness is switched off here so the composition properties can be seen on their own; E06 is the same envelope with freshness on.",
+  "options": {
+    "checkExpiry": false
+  },
+  "payload": {
+    "v": 1,
+    "attestations": [
+      {
+        "issuer": "https://api.insumermodel.com",
+        "type": "wallet_state",
+        "kid": "insumer-attest-v2",
+        "alg": "ES256",
+        "jwks": "https://insumermodel.com/.well-known/jwks.json",
+        "signed": null,
+        "sig": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Imluc3VtZXItYXR0ZXN0LXYyIn0.eyJwYXNzIjp0cnVlLCJjb25kaXRpb25IYXNoIjpbIjB4NzQ2MTgyNjYzOGEyMzg2MjA1OWRhOTQ3NGZhMTIwNTQ4MjlmNjk0MDIwNzAxNDkxZDY2MDM5NWI4N2RmNjEzMiJdLCJibG9ja051bWJlciI6IjB4MThhOGUyOCIsImJsb2NrVGltZXN0YW1wIjoiMjAyNi0wOC0yOVQwMToxOTo0Ny4wMDBaIiwicmVzdWx0cyI6W3siY29uZGl0aW9uIjowLCJsYWJlbCI6IiIsInR5cGUiOiJ0b2tlbl9iYWxhbmNlIiwiY2hhaW5JZCI6MSwibWV0Ijp0cnVlLCJldmFsdWF0ZWRDb25kaXRpb24iOnsidHlwZSI6InRva2VuX2JhbGFuY2UiLCJjaGFpbklkIjoxLCJjb250cmFjdEFkZHJlc3MiOiIweEEwYjg2OTkxYzYyMThiMzZjMWQxOUQ0YTJlOUViMGNFMzYwNmVCNDgiLCJvcGVyYXRvciI6Imd0ZSIsInRocmVzaG9sZCI6IjEifSwiY29uZGl0aW9uSGFzaCI6IjB4NzQ2MTgyNjYzOGEyMzg2MjA1OWRhOTQ3NGZhMTIwNTQ4MjlmNjk0MDIwNzAxNDkxZDY2MDM5NWI4N2RmNjEzMiIsImJsb2NrTnVtYmVyIjoiMHgxOGE4ZTI4IiwiYmxvY2tUaW1lc3RhbXAiOiIyMDI2LTA4LTI5VDAxOjE5OjQ3LjAwMFoifV0sImlzcyI6Imh0dHBzOi8vYXBpLmluc3VtZXJtb2RlbC5jb20iLCJzdWIiOiIweGQ4ZEE2QkYyNjk2NGFGOUQ3ZUVkOWUwM0U1MzQxNUQzN2FBOTYwNDUiLCJqdGkiOiJBVFNULTFBMDBBQzQ0N0E3RjZFNDkiLCJpYXQiOjE3ODc5NjYzOTUsImV4cCI6MTc4Nzk2ODE5NX0.YXz6IGtsECUkEdKDPJ8RfCleAhwCVIJvOy1tT1Z04ZcbXyH0C5u1zCEQMkohbR1JWk4QrxQ_asuK-i-flkx3pA",
+        "expiry": "2026-08-29T01:49:55.503Z"
+      },
+      {
+        "issuer": "https://api.insumermodel.com",
+        "type": "wallet_state",
+        "kid": "insumer-attest-v2",
+        "alg": "ES256",
+        "jwks": "https://insumermodel.com/.well-known/jwks.json",
+        "signed": null,
+        "sig": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Imluc3VtZXItYXR0ZXN0LXYyIn0.eyJwYXNzIjp0cnVlLCJjb25kaXRpb25IYXNoIjpbIjB4MDUyYTEyN2I1Y2Q1ZDNiODE5MDJlMmZkMmJmODQ2MDgxZGY5YjkzZWQ0MzdhMDY0NjgxYTUzZmYzMTBlOWMyZSJdLCJibG9ja051bWJlciI6IjB4MThhOGUyZiIsImJsb2NrVGltZXN0YW1wIjoiMjAyNi0wOC0yOVQwMToyMToxMS4wMDBaIiwicmVzdWx0cyI6W3siY29uZGl0aW9uIjowLCJsYWJlbCI6IiIsInR5cGUiOiJ0b2tlbl9iYWxhbmNlIiwiY2hhaW5JZCI6MSwibWV0Ijp0cnVlLCJldmFsdWF0ZWRDb25kaXRpb24iOnsidHlwZSI6InRva2VuX2JhbGFuY2UiLCJjaGFpbklkIjoxLCJjb250cmFjdEFkZHJlc3MiOiIweDZCMTc1NDc0RTg5MDk0QzQ0RGE5OGI5NTRFZWRlQUM0OTUyNzFkMEYiLCJvcGVyYXRvciI6Imd0ZSIsInRocmVzaG9sZCI6IjEifSwiY29uZGl0aW9uSGFzaCI6IjB4MDUyYTEyN2I1Y2Q1ZDNiODE5MDJlMmZkMmJmODQ2MDgxZGY5YjkzZWQ0MzdhMDY0NjgxYTUzZmYzMTBlOWMyZSIsImJsb2NrTnVtYmVyIjoiMHgxOGE4ZTJmIiwiYmxvY2tUaW1lc3RhbXAiOiIyMDI2LTA4LTI5VDAxOjIxOjExLjAwMFoifV0sImlzcyI6Imh0dHBzOi8vYXBpLmluc3VtZXJtb2RlbC5jb20iLCJzdWIiOiIweGQ4ZEE2QkYyNjk2NGFGOUQ3ZUVkOWUwM0U1MzQxNUQzN2FBOTYwNDUiLCJqdGkiOiJBVFNULTlGMzIxNTAxODUzNjM0MTMiLCJpYXQiOjE3ODc5NjY0NzMsImV4cCI6MTc4Nzk2ODI3M30.ICAx2uzsndL81AnrVBzqJ2k0JKPLmV5Un48KysOR5GBSqe9-M_hAe2G5BfDEcBd5wtBxwCrPO3fdrLIJ9989Yw",
+        "expiry": "2026-08-29T01:51:13.511Z"
+      }
+    ],
+    "expired": []
+  },
+  "expected": {
+    "valid": true,
+    "slots": [
+      {
+        "signatureValid": true,
+        "expired": false,
+        "error": null
+      },
+      {
+        "signatureValid": true,
+        "expired": false,
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 2,
+      "verified": 2,
+      "expired": 0,
+      "failed": 0,
+      "missingRequired": []
+    }
+  }
+}

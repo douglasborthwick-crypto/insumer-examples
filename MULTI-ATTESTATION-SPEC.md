@@ -28,8 +28,8 @@ This format emerged from convergence across ten independent issuers contributing
       "kid": "insumer-attest-v2",
       "alg": "ES256",
       "jwks": "https://insumermodel.com/.well-known/jwks.json",
-      "signed": { },
-      "sig": "<base64 | compact-jws>",
+      "signed": null,
+      "sig": "<compact-jws>",
       "expiry": "2026-03-20T13:04:57.000Z"
     }
   ],
@@ -54,9 +54,9 @@ This format emerged from convergence across ten independent issuers contributing
 | `kid` | string | MUST | Key ID for JWKS lookup. |
 | `alg` | string | MUST | Signing algorithm. One of `ES256`, `EdDSA`. |
 | `jwks` | string (URL) | MUST | JWKS endpoint where the public key for `kid` can be fetched. |
-| `signed` | object \| null | CONDITIONAL | The signed payload object. MUST be present when `sig` is a raw signature. MAY be `null` when `sig` is a compact JWS (the payload is embedded in the JWT). |
+| `signed` | object \| null | CONDITIONAL | The signed payload object. MUST be present when `sig` is a raw signature. When `sig` is a compact JWS the payload is embedded in the JWT and this field is not verified, so it SHOULD be `null`: an object carried alongside a JWS bears no signature, and a relying party that reads claims from it is reading unsigned data. An issuer whose signature covers anything other than the serialization of this object, a domain-separated preimage for example, MUST use the compact JWS form: the raw form verifies over `signed` itself and cannot represent such a signature. |
 | `sig` | string | MUST | Either a base64-encoded raw signature (P1363 format for ES256, raw bytes for EdDSA) or a compact JWS string (three dot-separated base64url segments). |
-| `expiry` | string (ISO 8601) | SHOULD | Expiration timestamp. If absent, relying parties SHOULD apply a default TTL of 30 minutes from `attestedAt` / `iat` / `timestamp` in the signed payload. |
+| `expiry` | string (ISO 8601) | SHOULD | Expiration timestamp. If absent, relying parties SHOULD apply a default TTL of 30 minutes from `attestedAt` / `iat` / `timestamp` in the signed payload. That fallback is unavailable on an entry whose `sig` is a compact JWS and whose `signed` is `null`, since there is no payload object beside the signature to read a timestamp from and the JWT's own `exp` sits inside the signature rather than beside it. An entry in that form SHOULD carry `expiry`, because without it a relying party has no freshness signal at all. |
 
 ### Design Decisions
 
@@ -170,7 +170,7 @@ curl -X POST https://api.insumermodel.com/v1/keys/create \
 
 Docs: [insumermodel.com/developers](https://insumermodel.com/developers/)
 
-**Signed payload fields** (these fields are included in `JSON.stringify(signed)` and covered by the signature):
+**Signed payload fields** (these fields are covered by the signature under both signing schemes):
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -196,9 +196,11 @@ Docs: [insumermodel.com/developers](https://insumermodel.com/developers/)
 | `failCount` | number | Number of conditions that failed. |
 | `expiresAt` | string | ISO 8601 expiration timestamp (30 minutes from `attestedAt`). |
 
-**Signature:** Base64-encoded P1363 (`r || s`, 64 bytes) over `JSON.stringify(signed)`, where `signed` = `{ id, pass, results, attestedAt }`.
+**Signature:** Selected by `kid`. Keys issued before the v2 rollout sign a base64-encoded P1363 (`r || s`, 64 bytes) raw signature over `JSON.stringify(signed)`, where `signed` = `{ id, pass, results, attestedAt }`. Keys created on or after it, which is every key issued today, sign a domain-separated preimage instead: the tag `insumer.attestation.v2`, a newline, then the canonical JSON of `{ v: 2, id, pass, results, attestedAt }`, with keys sorted lexicographically and recursively rather than left in insertion order. The bare object is therefore not the signed bytes under v2, which is why the raw form cannot represent such an attestation and the compact JWS form carries it in an envelope. See the note below and the [State Attestation Specification](https://insumermodel.com/state-attestation-spec/).
 
 **Optional JWT format:** When requested with `format: "jwt"`, the API also returns an ES256 JWT with claims: `iss`, `sub` (wallet address), `jti` (attestation ID), `iat`, `exp` (+1800s), `pass`, `conditionHash[]`, `blockNumber`, `blockTimestamp`, `results[]`.
+
+**Carrying an InsumerAPI attestation in an envelope.** Request it with `format: "jwt"` and place the returned JWT in `sig` with `signed` set to `null`. Keys created on or after the v2 rollout sign a domain-separated preimage rather than the bare attestation object, so the raw form, which verifies a signature over the serialization of `signed`, cannot carry them. The JWT is signed with the same key and selected by the same `kid`, so it verifies against the same JWKS. Populate `expiry` on the entry as well: with `signed` set to `null` there is no `attestedAt` for a relying party to fall back to, and the JWT's own `exp` claim sits inside the signature rather than beside it, so an entry carrying a JWS and no `expiry` cannot be judged stale.
 
 
 ### 3.2 ThoughtProof — `reasoning_integrity`

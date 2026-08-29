@@ -1,0 +1,55 @@
+{
+  "fixture": "E02-slot0-signature-stripped",
+  "description": "E01 with slot 0's signature removed entirely.",
+  "note": "The strip test. Slot 0 fails as a malformed entry naming the fields it lacks. Slot 1's verdict must be exactly what it was in E01. If removing one issuer's signature moved another issuer's verdict, the envelope would have grown a dependency between slots, which is what having no envelope-level signature exists to prevent.",
+  "options": {
+    "checkExpiry": false
+  },
+  "payload": {
+    "v": 1,
+    "attestations": [
+      {
+        "issuer": "https://api.insumermodel.com",
+        "type": "wallet_state",
+        "kid": "insumer-attest-v2",
+        "alg": "ES256",
+        "jwks": "https://insumermodel.com/.well-known/jwks.json",
+        "signed": null,
+        "expiry": "2026-08-29T01:49:55.503Z"
+      },
+      {
+        "issuer": "https://api.insumermodel.com",
+        "type": "wallet_state",
+        "kid": "insumer-attest-v2",
+        "alg": "ES256",
+        "jwks": "https://insumermodel.com/.well-known/jwks.json",
+        "signed": null,
+        "sig": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Imluc3VtZXItYXR0ZXN0LXYyIn0.eyJwYXNzIjp0cnVlLCJjb25kaXRpb25IYXNoIjpbIjB4MDUyYTEyN2I1Y2Q1ZDNiODE5MDJlMmZkMmJmODQ2MDgxZGY5YjkzZWQ0MzdhMDY0NjgxYTUzZmYzMTBlOWMyZSJdLCJibG9ja051bWJlciI6IjB4MThhOGUyZiIsImJsb2NrVGltZXN0YW1wIjoiMjAyNi0wOC0yOVQwMToyMToxMS4wMDBaIiwicmVzdWx0cyI6W3siY29uZGl0aW9uIjowLCJsYWJlbCI6IiIsInR5cGUiOiJ0b2tlbl9iYWxhbmNlIiwiY2hhaW5JZCI6MSwibWV0Ijp0cnVlLCJldmFsdWF0ZWRDb25kaXRpb24iOnsidHlwZSI6InRva2VuX2JhbGFuY2UiLCJjaGFpbklkIjoxLCJjb250cmFjdEFkZHJlc3MiOiIweDZCMTc1NDc0RTg5MDk0QzQ0RGE5OGI5NTRFZWRlQUM0OTUyNzFkMEYiLCJvcGVyYXRvciI6Imd0ZSIsInRocmVzaG9sZCI6IjEifSwiY29uZGl0aW9uSGFzaCI6IjB4MDUyYTEyN2I1Y2Q1ZDNiODE5MDJlMmZkMmJmODQ2MDgxZGY5YjkzZWQ0MzdhMDY0NjgxYTUzZmYzMTBlOWMyZSIsImJsb2NrTnVtYmVyIjoiMHgxOGE4ZTJmIiwiYmxvY2tUaW1lc3RhbXAiOiIyMDI2LTA4LTI5VDAxOjIxOjExLjAwMFoifV0sImlzcyI6Imh0dHBzOi8vYXBpLmluc3VtZXJtb2RlbC5jb20iLCJzdWIiOiIweGQ4ZEE2QkYyNjk2NGFGOUQ3ZUVkOWUwM0U1MzQxNUQzN2FBOTYwNDUiLCJqdGkiOiJBVFNULTlGMzIxNTAxODUzNjM0MTMiLCJpYXQiOjE3ODc5NjY0NzMsImV4cCI6MTc4Nzk2ODI3M30.ICAx2uzsndL81AnrVBzqJ2k0JKPLmV5Un48KysOR5GBSqe9-M_hAe2G5BfDEcBd5wtBxwCrPO3fdrLIJ9989Yw",
+        "expiry": "2026-08-29T01:51:13.511Z"
+      }
+    ],
+    "expired": []
+  },
+  "expected": {
+    "valid": false,
+    "slots": [
+      {
+        "signatureValid": false,
+        "expired": false,
+        "error": "Missing kid, alg, jwks, or sig"
+      },
+      {
+        "signatureValid": true,
+        "expired": false,
+        "error": null
+      }
+    ],
+    "summary": {
+      "total": 2,
+      "verified": 1,
+      "expired": 0,
+      "failed": 1,
+      "missingRequired": []
+    }
+  }
+}
