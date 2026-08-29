@@ -79,45 +79,88 @@ function fetchJSON(url, options, maxRedirects) {
 
 // ─── Provider fetchers ───────────────────────────────────────────
 
+// The wallet_state condition this demo attests. Kept deliberately small and
+// prove-any-balance: the envelope entry exists to carry a verifiable signature,
+// not to assert a threshold that matters. Matches the shape the envelope
+// fixtures use (token_balance >= "1", chainId 1). Threshold is a decimal STRING
+// because every key issued since 2026-06-10 signs v2 and rejects a JSON number.
+const BASELINE_CONDITION = {
+  type: "token_balance",
+  contractAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  chainId: 1,
+  threshold: "1",
+  label: "USDC on Ethereum >= 1"
+};
+
 /**
  * 1. InsumerAPI (foundation) — reads wallet state across 38 chains.
- * Returns the signed trust profile + chain context for downstream providers.
+ *
+ * Two calls, deliberately:
+ *   /v1/trust  — discovers chain activity. Its signature is NOT put in the
+ *                envelope: on a v2 key trust signs a domain-separated preimage
+ *                ("insumer.trust.v2\n" + canonical JSON) and returns no `jwt`,
+ *                and MULTI-ATTESTATION-SPEC.md section 3 requires the compact
+ *                JWS form for exactly that case. A raw entry over `signed`
+ *                cannot represent such a signature, so it would never verify.
+ *   /v1/attest  — with format: "jwt", producing the compact JWS the envelope
+ *                 carries. This is the form every fixture in
+ *                 vectors/envelope/ uses and the one the reference verifier
+ *                 checks by resolving the key from the JWS header `kid`.
+ *
+ * Returns the signed attestation entry + chain context for downstream providers.
  */
 async function fetchInsumerAPI(wallet, solanaWallet, xrplWallet, bitcoinWallet) {
   const apiKey = process.env.INSUMER_API_KEY;
   if (!apiKey) throw new Error("INSUMER_API_KEY not set");
+
+  const headers = { "Content-Type": "application/json", "X-API-Key": apiKey };
 
   const body = { wallet };
   if (solanaWallet) body.solanaWallet = solanaWallet;
   if (xrplWallet) body.xrplWallet = xrplWallet;
   if (bitcoinWallet) body.bitcoinWallet = bitcoinWallet;
 
+  // (a) Chain context. Used internally to steer the fan-out; never signed into
+  //     the envelope, so its signature form does not matter here.
   const data = await fetchJSON("https://api.insumermodel.com/v1/trust", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
-    body: JSON.stringify(body)
+    method: "POST", headers, body: JSON.stringify(body)
   });
 
   if (!data.ok || !data.data) throw new Error(data.error || "No data returned");
-  const { trust, sig, kid } = data.data;
+  const { trust } = data.data;
 
   // Extract chain context from the trust profile dimensions
   const chainsActive = Object.keys(trust.dimensions || {});
+
+  // (b) The envelope entry, as a compact JWS.
+  const attestRes = await fetchJSON("https://api.insumermodel.com/v1/attest", {
+    method: "POST", headers,
+    body: JSON.stringify({ wallet, conditions: [BASELINE_CONDITION], format: "jwt" })
+  });
+
+  if (!attestRes.ok || !attestRes.data) throw new Error(attestRes.error || "No attestation returned");
+  const { attestation, jwt, kid } = attestRes.data;
+  if (!jwt) throw new Error("/v1/attest returned no jwt — the envelope entry requires the compact JWS form");
 
   return {
     attestation: {
       issuer: "https://api.insumermodel.com",
       type: "wallet_state",
-      // Carry the kid the issuer returned. Do not substitute a default: this is a
-      // /v1/trust response (insumer-trust-v2 on a current key), the envelope spec
-      // makes kid a MUST, and the verifier already refuses an entry without one.
-      // Fabricating a kid would name a scheme the signature was not produced under.
+      // Carried from the response, never defaulted: the kid names the scheme a
+      // relying party verifies under, so a guess propagates into someone else's
+      // verification decision. The verifier already refuses an entry without one.
       kid: kid,
       alg: "ES256",
       jwks: "https://insumermodel.com/.well-known/jwks.json",
-      signed: trust,
-      sig: sig
+      // MUST be null beside a JWS: an object carried alongside a compact JWS
+      // bears no signature, and the verifier refuses such an entry as malformed.
+      signed: null,
+      sig: jwt,
+      expiry: attestation.expiresAt
     },
+    // The trust profile itself, for the run's own summary output. Returned
+    // separately because the envelope entry's `signed` is null beside a JWS.
+    trust: trust,
     // Chain context passed to downstream providers
     chainContext: {
       wallet: wallet,
@@ -447,7 +490,12 @@ async function fetchAPS(chainContext) {
     kid: attData.kid || "gateway-v1",
     alg: attData.alg || "EdDSA",
     jwks: attData.jwks || "https://gateway.aeoess.com/.well-known/jwks.json",
-    signed: attData.signed,
+    // `sig` is a compact JWS, so `signed` MUST be null. An object carried
+    // beside a JWS bears no signature, and a relying party reading claims from
+    // it reads unsigned data — which is why the verifier refuses the pairing
+    // (see vectors/envelope/E08-slot0-object-stapled-to-jws). Decoding the JWS
+    // recovers the payload, so nothing is lost by dropping it here.
+    signed: null,
     sig: attData.jws,
     _strictWalletBinding: strictResult  // metadata, not part of signed envelope
   };
@@ -608,7 +656,7 @@ async function resolveWallet(opts) {
   var insumerResult = await fetchInsumerAPI(wallet, solanaWallet, xrplWallet, bitcoinWallet);
   var chainContext = insumerResult.chainContext;
 
-  var trust = insumerResult.attestation.signed;
+  var trust = insumerResult.trust;
   console.log("[+] InsumerAPI: " + (trust.summary?.totalChecks || 0) + " checks across " +
     (trust.summary?.dimensionsChecked || 0) + " dimensions (" +
     chainContext.chainsActive.join(", ") + ")");
