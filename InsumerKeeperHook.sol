@@ -13,13 +13,17 @@ pragma solidity ^0.8.24;
  *   3. beforeKeep() verifies the signature via RIP-7212, checks pass/wallet/freshness.
  *   4. If any check fails, beforeKeep reverts and the collection is blocked.
  *
- * Signed payload (from index.js):
- *   JSON.stringify({ id: attestId, pass: allPassed, results: results, attestedAt: ISO })
- *   -> SHA-256 -> ECDSA P-256 sign -> base64 P1363 (64 bytes = r || s)
+ * Signed payload (per the OpenAPI spec; the preimage depends on the response kid):
+ *   kid "insumer-attest-v2" (keys minted today):
+ *     "insumer.attestation.v2\n" + canonical JSON (recursive sorted keys) of
+ *     { v: 2, id, pass, results, attestedAt }
+ *   kid "insumer-attest-v1" (pre-cutover keys):
+ *     JSON.stringify({ id, pass, results, attestedAt }) in original key order
+ *   Either way: -> SHA-256 -> ECDSA P-256 sign -> base64 P1363 (64 bytes = r || s)
  *
  * Response shape:
  *   { attestation: { id, pass, results[], passCount, failCount, attestedAt, expiresAt },
- *     sig: "<base64 P1363>", kid: "insumer-attest-v1" }
+ *     sig: "<base64 P1363>", kid: "insumer-attest-v2" }
  *
  * Trust model:
  *   The P-256 signature proves InsumerAPI produced the attestation. The extracted
@@ -156,8 +160,8 @@ contract InsumerKeeperHook is IKeeperHook {
     ///        conditionHash   <- keccak256(abi.encodePacked(attestation.results[0].conditionHash))
     ///        blockNumber     <- uint256(attestation.results[0].blockNumber)  (hex to uint)
     ///        r, s            <- decode sig from base64 P1363 (bytes 0-31 = r, bytes 32-63 = s)
-    ///        messageHash     <- SHA-256 of the signed payload:
-    ///                           JSON.stringify({id, pass, results, attestedAt})
+    ///        messageHash     <- SHA-256 of the signed payload (preimage per the
+    ///                           response kid; see the contract header note)
     function beforeKeep(
         bytes32 subId,
         uint256 /* cycle */,

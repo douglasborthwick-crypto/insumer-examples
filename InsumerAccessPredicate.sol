@@ -50,7 +50,9 @@ interface IERC165 {
 ///      hashed with SHA-256 and signed under a key whose public
 ///      coordinates are published at:
 ///        https://api.insumermodel.com/.well-known/jwks.json
-///        kid: "insumer-attest-v1", crv: P-256, alg: ES256
+///        kid "insumer-attest-v2" on keys minted today, "insumer-attest-v1"
+///        on pre-cutover keys; all published kids share the same coordinates.
+///        crv: P-256, alg: ES256
 ///
 ///      The predicate verifies the signature on-chain via the RIP-7212
 ///      `P256VERIFY` precompile (`0x0100`). The condition set is bound
@@ -105,7 +107,7 @@ interface IERC165 {
 ///        POST https://api.insumermodel.com/v1/attest
 ///        headers: {"X-API-Key": "<your_key>"}
 ///        body: {"wallet": "0x...", "conditions": [{"type":"token_balance",
-///               "contractAddress":"0x...", "chainId": 1, "threshold": 1,
+///               "contractAddress":"0x...", "chainId": 1, "threshold": "1",
 ///               "decimals": 6, "label": "USDC >= 1 on Ethereum"}]}
 ///
 ///      Decode the response into the seven-tuple `data` payload (see

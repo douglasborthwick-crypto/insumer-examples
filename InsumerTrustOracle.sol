@@ -101,7 +101,9 @@ contract InsumerTrustOracle is ITrustOracle {
     // State
     // ─────────────────────────────────────────────
 
-    /// @dev InsumerAPI P-256 public key coordinates (from JWKS, kid: "insumer-attest-v1").
+    /// @dev InsumerAPI P-256 public key coordinates (from JWKS; all published kids
+    ///      share these coordinates - trust profiles on keys minted today carry
+    ///      kid "insumer-trust-v2", pre-cutover keys "insumer-attest-v1").
     ///      If both are 0, signature verification is skipped.
     uint256 public immutable pubKeyX;
     uint256 public immutable pubKeyY;
