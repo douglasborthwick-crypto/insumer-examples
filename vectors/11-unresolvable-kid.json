@@ -1,7 +1,7 @@
 {
   "vector": "11-unresolvable-kid",
   "description": "Vector 01 presented with a kid that resolves to no key in the JWKS.",
-  "note": "Must fail closed. A verifier that falls back to the first key in the document verifies an unknown or forged kid against whichever key is listed first. insumer-verify throws here from 1.7.0; earlier versions fell back. Needs the jwksUrl option, since key resolution is only exercised when a JWKS is fetched.",
+  "note": "Must fail closed. A verifier that falls back to the first key in the document verifies an unknown or forged kid against whichever key is listed first. insumer-verify throws here from 1.7.0; earlier versions fell back. Needs the jwksUrl option, since key resolution is only exercised when a JWKS is fetched. When the kid resolves to no key in the set, all four checks report failed regardless of local recomputability; the recompute block below shows the condition hash itself still reproduces.",
   "options": {
     "jwksUrl": "https://insumermodel.com/.well-known/jwks.json"
   },
