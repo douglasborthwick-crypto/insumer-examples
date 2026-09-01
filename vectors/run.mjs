@@ -29,8 +29,14 @@ for (const f of files) {
   } else {
     for (const [name, want] of Object.entries(v.expected.checks)) {
       const got = result.checks[name]?.passed;
+      if (name === "pq" && result.checks.pq === undefined) {
+        problems.push("pq: this verifier predates insumer-verify 1.8.0 and reports no post-quantum verdict");
+        continue;
+      }
       if (got !== want) problems.push(`${name}: expected ${want}, got ${got}`);
     }
+    if (v.expected.pq && result.checks.pq && result.checks.pq.status !== v.expected.pq.status)
+      problems.push(`pq.status: expected ${v.expected.pq.status}, got ${result.checks.pq.status}`);
     const wantAtt = v.expected.attestation;
     if (wantAtt) {
       const a = v.response.data.attestation;

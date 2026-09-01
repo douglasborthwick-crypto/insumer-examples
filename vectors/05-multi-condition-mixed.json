@@ -85,7 +85,8 @@
       "signature": true,
       "conditionHashes": true,
       "freshness": true,
-      "expiry": false
+      "expiry": false,
+      "pq": true
     },
     "attestation": {
       "pass": false,
@@ -97,6 +98,9 @@
           "met": false
         }
       ]
+    },
+    "pq": {
+      "status": "absent"
     }
   }
 }

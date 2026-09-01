@@ -1,13 +1,16 @@
 {
-  "vector": "08-tampered-condition",
-  "description": "Vector 01 with the signed threshold rewritten from \"1\" to \"0.000001\".",
-  "note": "Both fail, for different reasons: the hash no longer matches the condition, and the condition sits inside the signed payload. The recompute block below shows reproduces:false.",
-  "options": {},
+  "vector": "16-pq-absent-under-cutoff",
+  "description": "Vector 01 (issued before post-quantum signing existed) presented to a verifier whose cutoff has passed.",
+  "note": "In access mode past pqRequiredFrom, an absent companion fails the artifact: this is the cutoff working. In evidence mode (mode: \"evidence\") the same artifact is never refused; the verifier reports pq absent and, given pqActivatedAt = the anchored binding date 2026-09-01T23:30:53Z, existedAtIssuance: false. Expected pq status: absent.",
+  "options": {
+    "jwksUrl": "https://insumermodel.com/.well-known/jwks.json",
+    "pqRequiredFrom": "2026-09-01T00:00:00Z"
+  },
   "recompute": [
     {
-      "canonicalEvaluatedCondition": "{\"chainId\":1,\"contractAddress\":\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\"operator\":\"gte\",\"threshold\":\"0.000001\",\"type\":\"token_balance\"}",
+      "canonicalEvaluatedCondition": "{\"chainId\":1,\"contractAddress\":\"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\"operator\":\"gte\",\"threshold\":\"1\",\"type\":\"token_balance\"}",
       "conditionHash": "0x7461826638a23862059da9474fa12054829f694020701491d660395b87df6132",
-      "reproduces": false,
+      "reproduces": true,
       "anchor": {
         "blockNumber": "0x18a8ac5",
         "blockTimestamp": "2026-08-28T22:24:59.000Z"
@@ -32,7 +35,7 @@
               "chainId": 1,
               "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
               "operator": "gte",
-              "threshold": "0.000001"
+              "threshold": "1"
             },
             "conditionHash": "0x7461826638a23862059da9474fa12054829f694020701491d660395b87df6132",
             "blockNumber": "0x18a8ac5",
@@ -56,11 +59,11 @@
   },
   "expected": {
     "checks": {
-      "signature": false,
-      "conditionHashes": false,
+      "signature": true,
+      "conditionHashes": true,
       "freshness": true,
       "expiry": false,
-      "pq": true
+      "pq": false
     },
     "pq": {
       "status": "absent"

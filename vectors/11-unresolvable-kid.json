@@ -61,7 +61,11 @@
       "signature": false,
       "conditionHashes": false,
       "freshness": false,
-      "expiry": false
+      "expiry": false,
+      "pq": false
+    },
+    "pq": {
+      "status": "unverifiable"
     }
   }
 }

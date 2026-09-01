@@ -59,7 +59,11 @@
       "signature": false,
       "conditionHashes": false,
       "freshness": true,
-      "expiry": false
+      "expiry": false,
+      "pq": true
+    },
+    "pq": {
+      "status": "absent"
     }
   }
 }
