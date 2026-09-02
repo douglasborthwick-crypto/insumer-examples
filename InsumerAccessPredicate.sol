@@ -45,14 +45,18 @@ interface IERC165 {
 /// @dev Architecture
 ///      ----------------------------------------------------------------
 ///      InsumerAPI signs an attestation off-chain using ECDSA P-256
-///      (ES256). The signed payload is the JSON object:
-///        `{ id, pass, results[], attestedAt }`
+///      (ES256). The signed preimage is selected by the response kid:
+///        "insumer-attest-v2" (keys minted today):
+///          "insumer.attestation.v2" + "\n" + canonical_json({v:2,id,pass,results,attestedAt})
+///        "insumer-attest-v1" (pre-cutover keys):
+///          JSON.stringify({ id, pass, results[], attestedAt })
 ///      hashed with SHA-256 and signed under a key whose public
 ///      coordinates are published at:
 ///        https://api.insumermodel.com/.well-known/jwks.json
-///        kid "insumer-attest-v2" on keys minted today, "insumer-attest-v1"
-///        on pre-cutover keys; all published kids share the same coordinates.
-///        crv: P-256, alg: ES256
+///        The three EC kids share the same coordinates (crv: P-256,
+///        alg: ES256). The set also carries two RFC 9964 AKP entries
+///        (ML-DSA-65 companion, kids insumer-attest-pq1/insumer-trust-pq1)
+///        that this predicate does not consume.
 ///
 ///      The predicate verifies the signature on-chain via the RIP-7212
 ///      `P256VERIFY` precompile (`0x0100`). The condition set is bound

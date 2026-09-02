@@ -4,7 +4,8 @@
  * A lightweight Express server that:
  * 1. Verifies on-chain token holdings via POST /v1/attest
  * 2. Checks merchant discounts via GET /v1/discount/check
- * 3. Verifies ECDSA signatures offline using Web Crypto
+ * 3. Returns the signed attestation (sig + kid, plus the pqSig/pqKid companion)
+ *    so the caller can verify it offline with insumer-verify
  *
  * Usage:
  *   INSUMER_API_KEY=insr_live_... node verify.js
