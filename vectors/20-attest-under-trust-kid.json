@@ -1,7 +1,7 @@
 {
-  "vector": "11-unresolvable-kid",
-  "description": "Vector 01 presented with a kid that resolves to no key in the JWKS.",
-  "note": "Must fail closed. A verifier that falls back to the first key in the document verifies an unknown or forged kid against whichever key is listed first. insumer-verify has refused this from 1.7.0; earlier versions fell back. Needs the jwksUrl option, since key resolution is only exercised when a JWKS is fetched. When the kid resolves to no key in the set, all four checks report failed regardless of local recomputability; the recompute block below shows the condition hash itself still reproduces.",
+  "vector": "20-attest-under-trust-kid",
+  "description": "Vector 01 presented under insumer-trust-v2, the kid that signs trust profiles.",
+  "note": "Must fail. The kid resolves: insumer-trust-v2 is in the JWKS, and it names the same EC coordinates as insumer-attest-v2. What it does not do is sign attestations. A kid is bound to its artifact type as well as to a key and a scheme (attestations verify under insumer-attest-v1 or insumer-attest-v2, trust profiles under insumer-attest-v1 or insumer-trust-v2), and a verifier that resolves the key and stops there accepts an attestation relabelled as a trust profile, or the reverse, whenever the two kids share a key, which today they do. insumer-verify checks the binding from 1.8.2 onward. jwksUrl is pinned so that key resolution succeeds and the refusal is shown to come from the binding, not from a lookup failure. Vector 21 is the same mislabelling in the other direction.",
   "options": {
     "jwksUrl": "https://insumermodel.com/.well-known/jwks.json"
   },
@@ -47,7 +47,7 @@
         "expiresAt": "2026-08-28T22:55:11.944Z"
       },
       "sig": "B6/KZxcRoJHSJi/Nprr567POnDS7fF2I/+BOQxOvA8BJhMOY6Sy4PK5zbYRkoeGQc27ZyNRXyNSc2jHpXlyByQ==",
-      "kid": "insumer-attest-v9"
+      "kid": "insumer-trust-v2"
     },
     "meta": {
       "version": "1.0",
@@ -59,13 +59,13 @@
   "expected": {
     "checks": {
       "signature": false,
-      "conditionHashes": false,
-      "freshness": false,
+      "conditionHashes": true,
+      "freshness": true,
       "expiry": false,
-      "pq": false
+      "pq": true
     },
     "pq": {
-      "status": "unverifiable"
+      "status": "absent"
     }
   }
 }

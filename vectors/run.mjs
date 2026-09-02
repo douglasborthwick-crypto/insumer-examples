@@ -1,25 +1,32 @@
-// run.mjs — verify every vector in this directory against its stated expectation.
+// run.mjs: verify every vector in this directory against its stated expectation.
 //
-//   npm install insumer-verify
+//   npm install insumer-verify @noble/post-quantum
 //   node run.mjs
 //
 // Exit 0 = every vector produced exactly the expected result. Exit 1 = at least
 // one did not. A vector that "fails" here means either the verifier is wrong or
 // the vector is; it is not a judgement about the wallet.
-import { verifyAttestation } from "insumer-verify";
+//
+// An attestation vector (response.data.attestation) goes through verifyAttestation.
+// A trust-profile vector (response.data.trust) goes through verifyTrustProfile.
+import { verifyAttestation, verifyTrustProfile } from "insumer-verify";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const files = readdirSync(here).filter((f) => /^\d\d-.*\.json$/.test(f)).sort();
+const ANCHOR_KEYS = ["blockNumber", "blockTimestamp", "slot", "ledgerIndex", "ledgerHash", "checkpointSequence", "blockHeight", "blockHash"];
 
 let failed = 0;
 for (const f of files) {
   const v = JSON.parse(readFileSync(join(here, f), "utf8"));
+  const isTrust = v.response?.data?.trust !== undefined;
   let result;
   try {
-    result = await verifyAttestation(v.response, v.options ?? {});
+    result = isTrust
+      ? await verifyTrustProfile(v.response, v.options ?? {})
+      : await verifyAttestation(v.response, v.options ?? {});
   } catch (e) {
     result = { checks: null, threw: e.message };
   }
@@ -45,6 +52,33 @@ for (const f of files) {
         if (a.results[i].met !== r.met)
           problems.push(`results[${i}].met: expected ${r.met}, got ${a.results[i].met}`);
       });
+    }
+    // Trust profiles: the not-evaluated marker (specification 11.3). A check whose chain
+    // wallet was not supplied carries evaluated: false, a reason, the parameter it needs,
+    // and no anchor, and is counted apart from pass and fail. Never a failure.
+    const wantTrust = v.expected.trust;
+    if (wantTrust) {
+      const t = v.response.data.trust;
+      const s = t.summary;
+      for (const [k, want] of Object.entries(wantTrust.summary ?? {})) {
+        if (s[k] !== want) problems.push(`summary.${k}: expected ${want}, got ${s[k]}`);
+      }
+      if (s.totalPassed + s.totalFailed + s.totalNotEvaluated !== s.totalChecks)
+        problems.push("summary: totalPassed + totalFailed + totalNotEvaluated does not equal totalChecks");
+      for (const [name, dim] of Object.entries(t.dimensions)) {
+        const n = dim.checks.filter((c) => c.evaluated === false).length;
+        if (dim.notEvaluatedCount !== n) problems.push(`${name}.notEvaluatedCount: expected ${n}, got ${dim.notEvaluatedCount}`);
+        if (dim.passCount + dim.failCount + dim.notEvaluatedCount !== dim.total)
+          problems.push(`${name}: passCount + failCount + notEvaluatedCount does not equal total`);
+      }
+      for (const ne of wantTrust.notEvaluated ?? []) {
+        const c = t.dimensions[ne.dimension]?.checks.find((x) => x.label === ne.label);
+        if (!c) { problems.push(`${ne.dimension} / ${ne.label}: check not found`); continue; }
+        if (c.evaluated !== false || c.reason !== "wallet_not_provided" || c.requires !== ne.requires)
+          problems.push(`${ne.dimension} / ${ne.label}: expected evaluated false, reason wallet_not_provided, requires ${ne.requires}`);
+        if (c.met !== false) problems.push(`${ne.dimension} / ${ne.label}: an unevaluated check reports met false`);
+        if (ANCHOR_KEYS.some((k) => k in c)) problems.push(`${ne.dimension} / ${ne.label}: an unevaluated check carries no anchor`);
+      }
     }
   }
   if (problems.length) {

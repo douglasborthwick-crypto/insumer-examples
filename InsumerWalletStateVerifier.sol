@@ -33,6 +33,14 @@ interface IWalletStateVerifier {
 ///      RIP-7212 availability: Base, Optimism, Arbitrum, Polygon, Scroll,
 ///      ZKsync, Celo — matches the typical ERC-8183 deployment footprint.
 ///
+///      Post-quantum companion:
+///      Since 2026-09-01 every attest and trust response also carries an ML-DSA-65
+///      post-quantum companion (pqSig/pqKid on the raw response, pqJwt beside jwt),
+///      and the JWKS carries two RFC 9964 AKP entries for its key (kids
+///      insumer-attest-pq1/insumer-trust-pq1) after the three EC entries. This
+///      contract verifies the classical ES256 signature only and does not consume
+///      the companion.
+///
 /// @dev FALLBACK MODE — trusted relayer (testnet-only)
 ///      ----------------------------------------------------------------
 ///      Constructing with `pubKeyX = pubKeyY = 0` skips on-chain signature

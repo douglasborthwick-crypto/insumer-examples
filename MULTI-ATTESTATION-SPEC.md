@@ -1,8 +1,8 @@
 # Multi-Attestation Payload Format
 
-**Version:** 1.1
+**Version:** 1.2
 **Status:** Draft
-**Date:** 2026-04-10
+**Date:** 2026-09-02
 **Discussion:** [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
 **Blog posts:** [Multi-Issuer Verification](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) · [Would You Trust Your Agent? KYA Is Real.](https://insumermodel.com/blog/multi-attestation-spec-five-shipped-wallet-binding.html)
 
@@ -158,7 +158,7 @@ Privacy-preserving on-chain verification. Returns signed booleans. No balances e
 | JWKS | `https://insumermodel.com/.well-known/jwks.json` |
 | Also | `GET /v1/jwks` (API endpoint, 24h cache) |
 
-The JWKS publishes three key IDs over the same P-256 key: `insumer-attest-v1` (legacy attest and trust), `insumer-attest-v2` (v2 attest), and `insumer-trust-v2` (v2 trust). Every key created on or after the v2 rollout is v2. The `kid` on each response selects both the key and the signing scheme, so a verifier reads it rather than assuming one.
+The JWKS publishes five entries over two keys. Three `EC` entries share the same P-256 key: `insumer-attest-v1` (legacy attest and trust), `insumer-attest-v2` (v2 attest), and `insumer-trust-v2` (v2 trust). Two RFC 9964 `AKP` entries, appended after them, publish the ML-DSA-65 key for the post-quantum companion under `insumer-attest-pq1` and `insumer-trust-pq1` (see the companion note below). Every key created on or after the v2 rollout is v2. The `kid` on each response selects both the key and the signing scheme, so a verifier reads it rather than assuming one, and selects by `kid`, never by position in the set.
 
 **Getting started:** Free API key, no credit card. Returns the key immediately.
 
@@ -201,6 +201,8 @@ Docs: [insumermodel.com/developers](https://insumermodel.com/developers/)
 **Optional JWT format:** When requested with `format: "jwt"`, the API also returns an ES256 JWT with claims: `iss`, `sub` (wallet address), `jti` (attestation ID), `iat`, `exp` (matching the attestation's expiry: +1800s, or +300s when the request carries an `erc7710_delegation` condition), `pass`, `conditionHash[]`, `blockNumber`, `blockTimestamp`, `results[]`.
 
 **Carrying an InsumerAPI attestation in an envelope.** Request it with `format: "jwt"` and place the returned JWT in `sig` with `signed` set to `null`. Keys created on or after the v2 rollout sign a domain-separated preimage rather than the bare attestation object, so the raw form, which verifies a signature over the serialization of `signed`, cannot carry them. The JWT is signed with the same key and selected by the same `kid`, so it verifies against the same JWKS. Populate `expiry` on the entry as well: with `signed` set to `null` there is no `attestedAt` for a relying party to fall back to, and the JWT's own `exp` claim sits inside the signature rather than beside it. A verifier that decodes the token reads that claim regardless (section 4 step 1), but `expiry` lets the entry be judged without decoding, and is the only signal at all on a token carrying no expiry claim of its own.
+
+**The post-quantum companion and the envelope.** Since 2026-09-01 every InsumerAPI attestation and trust profile also carries an ML-DSA-65 companion signature beside the classical one: `pqSig` and `pqKid` on the raw response, and a `pqJwt` beside `jwt` on the JWT format, resolved from the two `AKP` entries in the same JWKS. The envelope entry stays classical. An entry carries one classical `sig` under one classical `kid` and `alg` (`ES256` or `EdDSA`); the entry schema in section 1 has no companion slot, and this version does not add one. A companion may travel alongside the entry, for instance as `pqSig` and `pqKid` or `pqJwt` members an assembler leaves on it, but the envelope verifier does not evaluate those members, the per-slot verdict does not include them, and nothing in the envelope covers or binds them to the entry. A relying party that wants the companion verdict verifies each InsumerAPI entry's original response with `insumer-verify`, which reports the companion as its own verdict (`verified`, `refuted`, `absent`, `unverifiable`) beside the classical checks, under the policy in the [State Attestation Specification](https://insumermodel.com/state-attestation-spec/) (Check 6).
 
 
 ### 3.2 ThoughtProof — `reasoning_integrity`
@@ -846,6 +848,7 @@ For each attestation entry in `attestations[]`:
 
    **JWT path** (compact JWS):
    - Split `sig` on `.` into `[header, payload, signature]`.
+   - The entry-level `kid` alone selects the key. The signature check against that key is what binds the entry to it: a `kid` that names a key other than the one that signed the token fails at the signature step, so the verifier does not consult a `kid` inside the JWS header. Two kids that resolve to the same public key (the three InsumerAPI EC kids do) verify identically, and that is a labelling difference, not a forgery path.
    - The signing input is `header.payload` (the first two segments joined by `.`).
    - Decode `signature` from base64url to bytes.
    - For ES256: convert P1363 to DER, verify with SHA-256 and P-256.
@@ -870,6 +873,7 @@ function verifyMultiAttestation(payload, requiredTypes):
             continue
         key = fetchJWKS(att.jwks, att.kid, att.alg)
         if isJWT(att.sig):
+                continue
             valid = verifyJWT(att.sig, key, att.alg)
         else:
             message = JSON.stringify(att.signed)

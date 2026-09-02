@@ -34,6 +34,14 @@ pragma solidity ^0.8.24;
  *   bytes and SHA-256 hash them on-chain before verifying the signature (~2000 gas
  *   per payload byte).
  *
+ * Post-quantum companion:
+ *   Since 2026-09-01 every attest and trust response also carries an ML-DSA-65
+ *   post-quantum companion (pqSig/pqKid on the raw response, pqJwt beside jwt),
+ *   and the JWKS carries two RFC 9964 AKP entries for its key (kids
+ *   insumer-attest-pq1/insumer-trust-pq1) after the three EC entries. This
+ *   contract verifies the classical ES256 signature only and does not consume
+ *   the companion.
+ *
  * RIP-7212 P256VERIFY precompile availability:
  *   Base, Optimism, Arbitrum, Polygon, Scroll, ZKsync, Celo, and other L2s.
  *
