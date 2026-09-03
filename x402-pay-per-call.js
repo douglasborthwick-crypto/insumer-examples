@@ -68,7 +68,7 @@ const API = "https://api.insumermodel.com";
 async function usdcBalance(network, usdcAddress, payer) {
   const rpc = {
     "eip155:8453": { chain: base, url: "https://mainnet.base.org" },
-    "eip155:137": { chain: polygon, url: "https://polygon-rpc.com" },
+    "eip155:137": { chain: polygon, url: "https://1rpc.io/matic" },
     "eip155:42161": { chain: arbitrum, url: "https://arb1.arbitrum.io/rpc" },
   }[network];
   if (!rpc) return null;
