@@ -2,9 +2,13 @@
  * InsumerAPI x402 Pay-Per-Call — client example
  *
  * Call POST /v1/attest with NO API key and no signup: the API answers with an
- * x402 402 quote, you sign an EIP-3009 USDC authorization on Base, retry with
- * the X-PAYMENT header, and get back a signed attestation. Gasless for the
- * payer — the settlement transaction is submitted by the facilitator, not you.
+ * x402 402 quote listing one accept per settlement network (USDC on Base,
+ * Polygon, Arbitrum, or Solana), you sign an EIP-3009 USDC authorization on
+ * the EVM network you choose, retry with the PAYMENT-SIGNATURE header, and get
+ * back a signed attestation. Gasless for the payer — the settlement
+ * transaction is submitted by the facilitator, not you. (For Solana, use the
+ * official @x402/fetch client with @x402/svm; this hand-rolled example covers
+ * the EVM networks.)
  *
  * This is the mirror image of x402-condition-gate.js: there, InsumerAPI gates
  * YOUR x402 endpoint; here, x402 pays INSUMERAPI. Same protocol, same USDC
@@ -12,13 +16,19 @@
  *
  * The flow:
  *   1. POST /v1/attest with no credential headers → 402 + quote (JSON body).
- *      The quote's `accepts` lists both billing variants: standard, and
- *      proof:"merkle" at double price. Pick the one matching your request.
+ *      The quote's `accepts` lists one entry per settlement network, Base
+ *      first, all at the same amount (priced for the body you sent, so a
+ *      proof:"merkle" body is quoted at double). Pick a network; this example
+ *      takes the first EVM entry (Base) unless X402_NETWORK names another,
+ *      e.g. X402_NETWORK=eip155:137 for Polygon.
  *   2. Sign TransferWithAuthorization (EIP-3009) for EXACTLY the quoted
- *      amount — overpayment is rejected, not kept.
- *   3. Retry with X-PAYMENT: base64 of the x402 v2 PaymentPayload.
- *   4. 200 → signed attestation + an X-PAYMENT-RESPONSE header carrying the
- *      settlement transaction hash. Verify the attestation offline via JWKS.
+ *      amount under that entry's EIP-712 domain — overpayment is rejected,
+ *      not kept.
+ *   3. Retry with PAYMENT-SIGNATURE: base64 of the x402 v2 PaymentPayload.
+ *      (The v1 header name X-PAYMENT is still accepted.)
+ *   4. 200 → signed attestation + a PAYMENT-RESPONSE header (also sent as
+ *      X-PAYMENT-RESPONSE) carrying the settlement transaction hash. Verify
+ *      the attestation offline via JWKS.
  *
  * Notes that save debugging time:
  *   - Pay-per-call attest is capped at 2 conditions per request. Larger
@@ -35,30 +45,37 @@
  * Run without DEMO_PRIVATE_KEY and it generates a throwaway keypair: the
  * quote, signature, and submission all work end-to-end, but settlement
  * honestly declines — an empty wallet holds no USDC. Fund a wallet with a few
- * cents of USDC on Base (this demo costs $0.05) and pass its key to see a
+ * cents of USDC on the chosen network (this demo costs $0.05) and pass its key to see a
  * real settlement. The key is read only at runtime and never committed.
  */
 
 const { createPublicClient, http } = require("viem");
-const { base } = require("viem/chains");
+const { base, polygon, arbitrum } = require("viem/chains");
 const { privateKeyToAccount, generatePrivateKey } = require("viem/accounts");
 
 const API = "https://api.insumermodel.com";
 
 /**
- * Read the payer's USDC balance on Base (public RPC, no key). Purely a
- * preflight nicety: the facilitator reports an unfunded authorization as
- * `invalid_payload` (the transfer simulation reverts), which is cryptic —
+ * Read the payer's USDC balance on the quoted network (public RPC, no key).
+ * Purely a preflight nicety: the facilitator reports an unfunded authorization
+ * as `invalid_payload` (the transfer simulation reverts), which is cryptic —
  * checking first gives a clear message instead.
+ * @param {string} network - CAIP-2 network from the quote, e.g. "eip155:8453"
  * @param {string} usdcAddress - the USDC contract from the quote
  * @param {string} payer - the paying wallet address
  * @returns {Promise<bigint>} balance in atomic units (6 decimals)
  */
-async function usdcBalance(usdcAddress, payer) {
-  const pub = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
+async function usdcBalance(network, usdcAddress, payer) {
+  const rpc = {
+    "eip155:8453": { chain: base, url: "https://mainnet.base.org" },
+    "eip155:137": { chain: polygon, url: "https://polygon-rpc.com" },
+    "eip155:42161": { chain: arbitrum, url: "https://arb1.arbitrum.io/rpc" },
+  }[network];
+  if (!rpc) return null;
+  const pub = createPublicClient({ chain: rpc.chain, transport: http(rpc.url) });
   return pub.readContract({
     address: usdcAddress,
-    abi: [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] }],
+    abi: [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "a", type: "address" }], outputs: [{ type: "uint256" }] }],
     functionName: "balanceOf",
     args: [payer],
   });
@@ -87,12 +104,18 @@ const EIP3009_TYPES = {
  * @returns {object} the chosen PaymentRequirements
  */
 function chooseRequirement(accepts, body) {
-  const sorted = [...accepts].sort((a, b) => (BigInt(a.amount) < BigInt(b.amount) ? -1 : 1));
-  return body.proof === "merkle" ? sorted[sorted.length - 1] : sorted[0];
+  // One entry per network, same amount for this body. Take the network named
+  // by X402_NETWORK (CAIP-2, e.g. eip155:137) or the first EVM entry (Base).
+  const want = process.env.X402_NETWORK;
+  const evm = accepts.filter((a) => a.network.startsWith("eip155:"));
+  const pick = want ? evm.find((a) => a.network === want) : evm[0];
+  if (!pick) throw new Error(`No EVM accept for ${want || "any network"} in quote: ${accepts.map((a) => a.network).join(", ")}`);
+  return pick;
 }
 
 /**
- * Call an InsumerAPI x402-enabled endpoint, paying per call in USDC on Base.
+ * Call an InsumerAPI x402-enabled endpoint, paying per call in USDC on one of
+ * the quoted EVM networks (Base by default).
  * @param {string} path - endpoint path, e.g. "/v1/attest"
  * @param {object} body - the request body
  * @param {string} privateKey - hex private key of the paying wallet
@@ -141,7 +164,7 @@ async function payPerCall(path, body, privateKey) {
     },
   });
 
-  // Step 3: retry with the x402 v2 PaymentPayload in X-PAYMENT.
+  // Step 3: retry with the x402 v2 PaymentPayload in PAYMENT-SIGNATURE.
   const paymentPayload = {
     x402Version: 2,
     resource: { url, method: "POST" },
@@ -150,13 +173,14 @@ async function payPerCall(path, body, privateKey) {
   };
   const paidRes = await fetch(url, {
     method: "POST",
-    headers: { ...json, "X-PAYMENT": Buffer.from(JSON.stringify(paymentPayload)).toString("base64") },
+    headers: { ...json, "PAYMENT-SIGNATURE": Buffer.from(JSON.stringify(paymentPayload)).toString("base64") },
     body: JSON.stringify(body),
   });
 
-  // Step 4: on success the settlement receipt rides in X-PAYMENT-RESPONSE.
+  // Step 4: on success the settlement receipt rides in PAYMENT-RESPONSE
+  // (and, for older clients, X-PAYMENT-RESPONSE — identical contents).
   let settlement = null;
-  const receiptHeader = paidRes.headers.get("X-PAYMENT-RESPONSE");
+  const receiptHeader = paidRes.headers.get("PAYMENT-RESPONSE") || paidRes.headers.get("X-PAYMENT-RESPONSE");
   if (receiptHeader) {
     try {
       settlement = JSON.parse(Buffer.from(receiptHeader, "base64").toString("utf8"));
@@ -194,9 +218,13 @@ async function main() {
   const result = await payPerCall("/v1/attest", body, key);
   if (result.quote) {
     const usd = Number(result.quote.amount) / 1e6;
-    console.log(`Quoted: $${usd.toFixed(2)} USDC on Base → ${result.quote.payTo}`);
-    const bal = await usdcBalance(result.quote.asset, payer);
-    console.log(`Payer USDC balance: ${(Number(bal) / 1e6).toFixed(6)}`);
+    console.log(`Quoted: $${usd.toFixed(2)} USDC on ${result.quote.network} → ${result.quote.payTo}`);
+    try {
+      const bal = await usdcBalance(result.quote.network, result.quote.asset, payer);
+      if (bal !== null) console.log(`Payer USDC balance: ${(Number(bal) / 1e6).toFixed(6)}`);
+    } catch {
+      console.log("Payer USDC balance: (public RPC unavailable — the settlement result below is what counts)");
+    }
     if (bal < BigInt(result.quote.amount)) {
       console.log("Balance is below the quoted price — settlement will decline.");
     }
@@ -218,7 +246,7 @@ async function main() {
     console.log(`\nNot settled (HTTP ${result.status}): ${typeof msg === "string" ? msg : JSON.stringify(msg)}`);
     console.log("(An unfunded wallet's authorization is reported as invalid_payload —");
     console.log("the facilitator's transfer simulation reverts on a zero balance.)");
-    console.log("Fund the payer wallet with USDC on Base and re-run to see a real settlement.");
+    console.log("Fund the payer wallet with USDC on the quoted network and re-run to see a real settlement.");
   }
 }
 

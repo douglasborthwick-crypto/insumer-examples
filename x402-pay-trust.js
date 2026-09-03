@@ -10,7 +10,7 @@
  * Usage:
  *   DEMO_PRIVATE_KEY=0x... node x402-pay-trust.js
  *
- * Needs $0.30 USDC on Base for both calls; if the balance only covers the
+ * Needs $0.30 USDC on Base (the default network) for both calls; if the balance only covers the
  * first, the second is skipped with a clear message rather than a cryptic
  * facilitator decline.
  */
@@ -66,7 +66,7 @@ async function main() {
   const midBal = await usdcBalance(payer);
   if (midBal < 150000n) {
     console.log(`\nSkipping /v1/trust/batch: balance ${(Number(midBal) / 1e6).toFixed(6)} is below $0.15.`);
-    console.log(`Top up USDC on Base to ${payer} and re-run — the trust settlement above still counts.`);
+    console.log(`Top up USDC on Base (the network this example pays on) to ${payer} and re-run — the trust settlement above still counts.`);
     return;
   }
   console.log("\nPOST /v1/trust/batch ($0.15, one wallet)…");
