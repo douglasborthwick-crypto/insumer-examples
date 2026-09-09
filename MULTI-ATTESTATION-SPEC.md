@@ -53,7 +53,7 @@ This format emerged from convergence across ten independent issuers contributing
 | `type` | string | MUST | Attestation type (see Section 2). Relying parties select entries by this field, not by position. |
 | `kid` | string | MUST | Key ID for JWKS lookup. |
 | `alg` | string | MUST | Signing algorithm. One of `ES256`, `EdDSA`. |
-| `jwks` | string (URL) | MUST | JWKS endpoint where the public key for `kid` can be fetched. |
+| `jwks` | string (URL) | MUST | Where this issuer publishes its keys. A discovery hint for relying parties enrolling the issuer, not the trust root: the verifying key comes from the key set the relying party holds or pins for `issuer` (Section 4, step 3), and this URL MUST match that pinned origin. |
 | `signed` | object \| null | CONDITIONAL | The signed payload object. MUST be present when `sig` is a raw signature. When `sig` is a compact JWS the payload is embedded in the JWT and this field is not verified, so it MUST be `null`: an object carried alongside a JWS bears no signature, and a relying party that reads claims from it is reading unsigned data. A verifier MUST refuse such an entry as malformed rather than verify the JWS and report success, since a verifier that returns before examining `signed` reports a valid signature over an object the signature does not cover. Matching `signed` against the JWT payload instead is not a general alternative. The relationship between the two is issuer-specific: for some issuers the object is a subset of the JWS payload and the comparison is well defined, while for others the JWT is a different projection of the attestation and there is nothing to compare. Because this format requires no coordination between issuers, a verifier cannot know which convention applies to an entry it is handed, and a check that is meaningless for some issuers can only fall back to accepting them, which reinstates the problem. Rejection is the one rule that holds uniformly. Note for integrators: several issuers return the JWS and its decoded payload as separate fields of the same API response. Carry only the JWS into the entry and set `signed` to `null` — nothing is lost, since decoding the JWS recovers the object. An issuer whose signature covers anything other than the serialization of this object, a domain-separated preimage for example, MUST use the compact JWS form: the raw form verifies over `signed` itself and cannot represent such a signature. |
 | `sig` | string | MUST | Either a base64-encoded raw signature (P1363 format for ES256, raw bytes for EdDSA) or a compact JWS string (three dot-separated base64url segments). |
 | `expiry` | string (ISO 8601) | SHOULD | Expiration timestamp. If absent, relying parties SHOULD apply a default TTL of 30 minutes from `attestedAt` (or its snake_case spelling `attested_at`) / `iat` / `timestamp` in the signed payload. That fallback is unavailable on an entry whose `sig` is a compact JWS, where `signed` is necessarily `null` and there is no payload object beside the signature to read a timestamp from; a verifier reads the expiry claim inside the token instead, as section 4 step 1 describes. An entry in that form SHOULD still carry `expiry`, so that it can be judged by a relying party that does not decode the token, and because a token carrying no expiry claim of its own leaves nothing else to read. |
@@ -63,7 +63,7 @@ This format emerged from convergence across ten independent issuers contributing
 - **Insertion order is not significant.** Relying parties select attestations by `type`, never by array index.
 - **`requiredTypes` belongs in verifier configuration, not in the payload.** The payload is a neutral bundle; policy is the relying party's concern.
 - **Only verifiable entries appear in `attestations`.** Unsigned or unverifiable data MUST NOT be included.
-- **Self-describing entries.** Each attestation carries its own `alg`, `kid`, and `jwks`. No shared key registry, no trust anchors beyond JWKS.
+- **Self-describing entries.** Each attestation carries its own `alg`, `kid`, and `jwks`. No shared key registry. The trust anchor is the key set the relying party holds for the issuer, selected by `kid`; the entry's `jwks` says where that set is published and MUST match the origin the relying party has pinned for `issuer`. A `kid` that resolves to no key in that set is a failure, not a reason to fetch another key.
 - **Signature format is polymorphic, and the two forms are exclusive.** If `sig` contains exactly two dots, it is a compact JWS. Otherwise, it is a base64-encoded raw signature over `JSON.stringify(signed)`. An entry carries one form or the other, never both: a JWS with a non-null `signed` is malformed, because the object beside it is unsigned data in a field a relying party reads as attested.
 
 ### Reference Implementation Criteria
@@ -73,7 +73,7 @@ The issuer table in Section 2 is this spec's reference set. Participation in the
 To be added to the reference set, an implementation MUST:
 
 1. **Publish a JWKS endpoint** at a stable URL, returning a JWK set containing the `kid` referenced in the attestation entry.
-2. **Sign attestations end-to-end.** The `sig` field MUST verify against the public key fetched from the JWKS endpoint, over the canonical bytes of the signed payload — `header.payload` for compact JWS, or either insertion-order `JSON.stringify(signed)` or sorted-key (canonical) JSON for ES256 raw P1363 and EdDSA raw (the reference verifier accepts both for both algorithms).
+2. **Sign attestations end-to-end.** The `sig` field MUST verify against the public key published at the JWKS endpoint, over the canonical bytes of the signed payload — `header.payload` for compact JWS, or either insertion-order `JSON.stringify(signed)` or sorted-key (canonical) JSON for ES256 raw P1363 and EdDSA raw (the reference verifier accepts both for both algorithms).
 3. **Be reproducible by a third-party verifier.** The reference verifier (`multi-attest-verify.js`) MUST resolve the JWKS, fetch a live attestation, and return a verified result with no issuer cooperation beyond the published endpoints.
 
 When all three conditions hold against a live attestation, the implementation is added to the Section 2 table as a live issuer.
@@ -839,7 +839,7 @@ For each attestation entry in `attestations[]`:
 
 2. **Determine signature format.** If `sig` contains exactly two `.` characters, treat it as a compact JWS (JWT). Otherwise, treat it as a base64-encoded raw signature.
 
-3. **Fetch the public key.** HTTP GET the `jwks` URL. Find the key where `kid` matches. Implementations SHOULD cache JWKS responses (recommended: 1 hour TTL). Cache entries MUST be keyed by the JWKS URL (or URL plus `kid`), never by `kid` alone: two issuers may publish the same `kid`, and a cache keyed only on `kid` would let one issuer's key satisfy another issuer's lookup. The reference verifier keys its cache on `jwksUrl:kid`. Note also that the verifier does not derive a JWKS location from `issuer`; the `jwks` URL is taken from the attestation itself, and pinning issuers to expected JWKS URLs is the relying party's job (see 5.1).
+3. **Resolve the public key from the relying party's own key set for `issuer`.** A relying party holds, or pins by origin, the JWKS for every issuer it accepts; the entry's `jwks` MUST match that pinned origin, and an entry whose `issuer` is not in the relying party's set, or whose `jwks` points elsewhere, fails closed. Fetch that pinned JWKS (not a URL taken on trust from the entry) and find the key where `kid` matches; a `kid` matching no key is a failure, not a reason to fetch another key. Discovery mode (accepting `jwks` from the entry for an issuer not yet pinned) is a relying-party opt-in, never the default. Implementations SHOULD cache JWKS responses (recommended: 1 hour TTL). Cache entries MUST be keyed by the JWKS URL (or URL plus `kid`), never by `kid` alone: two issuers may publish the same `kid`, and a cache keyed only on `kid` would let one issuer's key satisfy another issuer's lookup. The reference verifier keys its cache on `jwksUrl:kid`. Note also that the verifier does not derive a JWKS location from `issuer`; the `jwks` URL is taken from the attestation itself, and pinning issuers to expected JWKS URLs is the relying party's job (see 5.1).
 
 4. **Verify the signature.**
 
@@ -874,7 +874,11 @@ function verifyMultiAttestation(payload, requiredTypes):
         if isExpired(att):
             results.push({ type: att.type, status: "expired" })
             continue
-        key = fetchJWKS(att.jwks, att.kid, att.alg)
+        pinned = trustedIssuers[att.issuer]           # relying-party configuration
+        if pinned == null or origin(att.jwks) != origin(pinned):
+            results.push({ type: att.type, status: "failed", error: "issuer not pinned or jwks origin mismatch" })
+            continue
+        key = fetchJWKS(pinned, att.kid, att.alg)
         if isJWT(att.sig):
                 continue
             valid = verifyJWT(att.sig, key, att.alg)

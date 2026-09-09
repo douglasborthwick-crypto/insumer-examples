@@ -3,7 +3,10 @@
  *
  * Verifies an array of independent attestations from multiple issuers.
  * Each attestation has its own signature, key ID, algorithm, and JWKS endpoint.
- * The verifier fetches each issuer's public key and checks the signature independently.
+ * The verifier resolves each issuer's key from the JWKS the relying party has
+ * pinned for that issuer (TRUSTED_ISSUERS below, extendable via options); the
+ * entry's own `jwks` is a discovery hint that must match the pinned origin, never
+ * the trust root. Unknown issuers fail closed unless discovery mode is opted in.
  *
  * Supported algorithms:
  *   - ES256 (ECDSA P-256) — InsumerAPI, RNWY, Maiat, Revettr, TrustLayer
@@ -17,6 +20,10 @@
  * Or import as a module:
  *   const { verifyMultiAttestation } = require('./multi-attest-verify');
  *   const result = await verifyMultiAttestation(payload, { requiredTypes: ['wallet_state'] });
+ *   // Accept an issuer that is not in the default pin set:
+ *   await verifyMultiAttestation(payload, { trustedIssuers: { 'https://issuer.example': 'https://issuer.example/.well-known/jwks.json' } });
+ *   // Discovery mode (take `jwks` from the entry for unpinned issuers), opt-in only:
+ *   await verifyMultiAttestation(payload, { allowUnpinnedIssuers: true });
  */
 
 const crypto = require("crypto");
@@ -25,6 +32,46 @@ const https = require("https");
 // --- JWKS cache (in-memory, per-process) ---
 const jwksCache = new Map();
 const JWKS_CACHE_TTL = 3600 * 1000; // 1 hour
+
+// --- Relying-party key configuration ---
+// The trust anchor for each entry is the JWKS the relying party holds for that
+// issuer, selected by `kid`. The entry's `jwks` field must match the pinned
+// origin; it never selects the key on its own (spec section 4, step 3).
+const TRUSTED_ISSUERS = {
+  "https://api.insumermodel.com": "https://insumermodel.com/.well-known/jwks.json",
+  "https://insumermodel.com": "https://insumermodel.com/.well-known/jwks.json",
+  "https://api.thoughtproof.ai": "https://api.thoughtproof.ai/.well-known/jwks.json",
+  "https://rnwy.com": "https://rnwy.com/.well-known/jwks.json",
+  "https://getagentid.dev": "https://getagentid.dev/.well-known/jwks.json",
+  "https://agentgraph.co": "https://agentgraph.co/.well-known/jwks.json",
+  "https://gateway.aeoess.com": "https://gateway.aeoess.com/.well-known/jwks.json",
+  "https://app.maiat.io": "https://app.maiat.io/.well-known/jwks.json",
+  "https://defaultverifier.com": "https://defaultverifier.com/.well-known/jwks.json",
+  "https://revettr.com": "https://revettr.com/.well-known/jwks.json",
+  "did:web:revettr.com": "https://revettr.com/.well-known/jwks.json",
+  "https://api.thetrustlayer.xyz": "https://api.thetrustlayer.xyz/.well-known/jwks.json",
+};
+
+function originOf(url) {
+  try { return new URL(url).origin; } catch (_) { return null; }
+}
+
+/**
+ * Resolve which JWKS URL verifies an entry. Returns { jwksUrl } or { error }.
+ * Pinned issuer: the entry's `jwks` must share the pinned origin. Unpinned
+ * issuer: fail closed unless the relying party opted into discovery mode.
+ */
+function resolveKeySource(att, trustedIssuers, allowUnpinnedIssuers) {
+  const pinned = att.issuer ? trustedIssuers[att.issuer] : undefined;
+  if (pinned) {
+    if (originOf(att.jwks) !== originOf(pinned)) {
+      return { error: `jwks origin mismatch for ${att.issuer}: entry names ${att.jwks}, relying party pins ${pinned}` };
+    }
+    return { jwksUrl: pinned };
+  }
+  if (allowUnpinnedIssuers) return { jwksUrl: att.jwks };
+  return { error: `Issuer not pinned by the relying party: ${att.issuer || "(missing)"}` };
+}
 
 /**
  * Fetch JSON over HTTPS. Returns parsed JSON.
@@ -350,6 +397,8 @@ function isExpired(attestation) {
  * @param {object} options
  * @param {string[]} options.requiredTypes - Array of type strings that must be present and valid
  * @param {boolean} options.checkExpiry - Whether to check expiration (default: true)
+ * @param {object} options.trustedIssuers - issuer URI -> JWKS URL, merged over TRUSTED_ISSUERS
+ * @param {boolean} options.allowUnpinnedIssuers - Take `jwks` from the entry for issuers not pinned (default: false, fail closed)
  * @returns {object} { valid, results[], summary }
  *   Each result includes `verifiedAt` (ISO 8601) — when the signature was checked against the issuer's JWKS.
  */
@@ -357,6 +406,8 @@ async function verifyMultiAttestation(payload, options) {
   options = options || {};
   const requiredTypes = options.requiredTypes || [];
   const checkExpiry = options.checkExpiry !== false;
+  const trustedIssuers = Object.assign({}, TRUSTED_ISSUERS, options.trustedIssuers || {});
+  const allowUnpinnedIssuers = options.allowUnpinnedIssuers === true;
 
   if (!payload || !Array.isArray(payload.attestations)) {
     return {
@@ -430,8 +481,16 @@ async function verifyMultiAttestation(payload, options) {
       return result;
     }
 
-    // Verify signature
-    const sigResult = await verifySignature(att);
+    // Resolve the verifying key from the relying party's own configuration
+    // (spec section 4, step 3): the entry's jwks is a hint, not the trust root.
+    const source = resolveKeySource(att, trustedIssuers, allowUnpinnedIssuers);
+    if (source.error) {
+      result.error = source.error;
+      return result;
+    }
+
+    // Verify signature against the pinned JWKS
+    const sigResult = await verifySignature(Object.assign({}, att, { jwks: source.jwksUrl }));
     result.signatureValid = sigResult.valid;
     result.verifiedAt = new Date().toISOString();
     if (!sigResult.valid) {
@@ -597,7 +656,7 @@ async function main() {
         type: "job_performance",
         kid: maiat.kid || "maiat-trust-v1",
         alg: "ES256",
-        jwks: maiat.jwks || "https://app.maiat.io/.well-known/jwks.json",
+        jwks: "https://app.maiat.io/.well-known/jwks.json",
         signed: null, // JWT format — payload is in the JWS
         sig: maiat.token,
         expiry: jwsExpiry(maiat.token),
@@ -706,7 +765,7 @@ async function main() {
         type: "security_posture",
         kid: ag.key_id || "agentgraph-security-v1",
         alg: ag.algorithm || "EdDSA",
-        jwks: ag.jwks_url || "https://agentgraph.co/.well-known/jwks.json",
+        jwks: "https://agentgraph.co/.well-known/jwks.json",
         signed: null, // JWT format — payload is in the JWS
         sig: ag.jws,
         expiry: jwsExpiry(ag.jws),
@@ -761,7 +820,7 @@ async function main() {
         type: sar.type || "settlement_witness",
         kid: sar.kid || "sar-prod-ed25519-03",
         alg: sar.alg || "EdDSA",
-        jwks: sar.jwks || "https://defaultverifier.com/.well-known/jwks.json",
+        jwks: "https://defaultverifier.com/.well-known/jwks.json",
         signed: null, // JWT format
         sig: sar.jws,
         expiry: jwsExpiry(sar.jws),
@@ -806,7 +865,7 @@ async function main() {
         type: "compliance_risk",
         kid: rev.kid || "revettr-attest-v1",
         alg: rev.algorithm || "ES256",
-        jwks: rev.jwks_url || "https://revettr.com/.well-known/jwks.json",
+        jwks: "https://revettr.com/.well-known/jwks.json",
         signed: null, // JWT format — payload is in the JWS
         sig: rev.jws,
         expiry: rev.expires_at ? new Date(rev.expires_at * 1000).toISOString() : undefined,
@@ -900,7 +959,7 @@ async function main() {
 }
 
 // Export for use as module
-module.exports = { verifyMultiAttestation, verifySignature, getPublicKey };
+module.exports = { verifyMultiAttestation, verifySignature, getPublicKey, resolveKeySource, TRUSTED_ISSUERS };
 
 // Run CLI if executed directly
 if (require.main === module) {

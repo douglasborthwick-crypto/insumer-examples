@@ -334,7 +334,7 @@ async function fetchAgentGraph(chainContext) {
           type: "security_posture",
           kid: scan.key_id || "agentgraph-security-v1",
           alg: scan.algorithm || "EdDSA",
-          jwks: scan.jwks_url || "https://agentgraph.co/.well-known/jwks.json",
+          jwks: "https://agentgraph.co/.well-known/jwks.json",
           signed: null,
           sig: scan.jws
         };
@@ -353,7 +353,7 @@ async function fetchAgentGraph(chainContext) {
     type: "security_posture",
     kid: data.key_id || "agentgraph-security-v1",
     alg: data.algorithm || "EdDSA",
-    jwks: data.jwks_url || "https://agentgraph.co/.well-known/jwks.json",
+    jwks: "https://agentgraph.co/.well-known/jwks.json",
     signed: null,
     sig: data.jws
   };
@@ -496,7 +496,7 @@ async function fetchAPS(chainContext) {
     type: attData.type || "passport_grade",
     kid: attData.kid || "gateway-v1",
     alg: attData.alg || "EdDSA",
-    jwks: attData.jwks || "https://gateway.aeoess.com/.well-known/jwks.json",
+    jwks: "https://gateway.aeoess.com/.well-known/jwks.json",
     // `sig` is a compact JWS, so `signed` MUST be null. An object carried
     // beside a JWS bears no signature, and a relying party reading claims from
     // it reads unsigned data — which is why the verifier refuses the pairing
@@ -540,7 +540,7 @@ async function fetchMaiat(chainContext) {
     type: "job_performance",
     kid: data.kid || "maiat-trust-v1",
     alg: "ES256",
-    jwks: data.jwks || "https://app.maiat.io/.well-known/jwks.json",
+    jwks: "https://app.maiat.io/.well-known/jwks.json",
     signed: data.payload,
     sig: data.token
   };
@@ -588,7 +588,7 @@ async function fetchSAR(chainContext) {
     type: data.type || "settlement_witness",
     kid: data.kid || "sar-prod-ed25519-06",
     alg: data.alg || "EdDSA",
-    jwks: data.jwks || "https://defaultverifier.com/.well-known/jwks.json",
+    jwks: "https://defaultverifier.com/.well-known/jwks.json",
     signed: null,
     sig: data.jws
   };
@@ -615,7 +615,7 @@ async function fetchRevettr(chainContext) {
     type: "compliance_risk",
     kid: data.kid || "revettr-attest-v1",
     alg: data.algorithm || "ES256",
-    jwks: data.jwks_url || "https://revettr.com/.well-known/jwks.json",
+    jwks: "https://revettr.com/.well-known/jwks.json",
     signed: null,
     sig: data.jws,
     expiry: data.expires_at ? new Date(data.expires_at * 1000).toISOString() : undefined
