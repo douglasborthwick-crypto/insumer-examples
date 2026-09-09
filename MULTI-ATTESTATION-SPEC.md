@@ -96,7 +96,7 @@ Schema reservations, aspirational commitments, or proposed attestation dimension
 | `passport_grade` | APS | EdDSA (Ed25519) | compact JWS (JWT) | per-issuer |
 | `trust_verification` | AgentID | EdDSA (Ed25519) | compact JWS (JWT) | 1 hour |
 | `security_posture` | AgentGraph | EdDSA (Ed25519) | compact JWS (JWT) | 24 hours |
-| `settlement_witness` | SAR | EdDSA (Ed25519) | compact JWS (JWT, kid `sar-prod-ed25519-03` current, `-02`/`-01` legacy) | per-issuer |
+| `settlement_witness` | SAR | EdDSA (Ed25519) | compact JWS (JWT, kid `sar-prod-ed25519-06` current; `-05`/`-03`/`-02`/`-01` legacy) | per-issuer |
 | `cross_chain_reputation` | TrustLayer | ES256 | base64url P1363 over canonical (sorted-key) JSON | per-issuer |
 
 ---
@@ -116,7 +116,7 @@ An analytical split across the envelope worth naming because it clarifies how co
 | Compliance risk | Revettr | `sub` |
 | Identity verification | AgentID v1.1.0 | `bound_addresses`, `solana_address`, `wallet_address` |
 | Passport grade (governance) | APS `gateway-v1` | `wallet_ref[].address` (envelope JWS, gateway key) + `wallet_ref[].binding_sig` (per-entry, passport pubkey) |
-| Settlement witness (new receipts) | SAR `sar-prod-ed25519-03` | `counterparty` |
+| Settlement witness (new receipts) | SAR `sar-prod-ed25519-06`, profile `settlement-witness-verified-v0.2-counterparty-bound` | `counterparty` |
 | Reasoning integrity (wallet-indexed) | ThoughtProof `tp-attestor-v1` | `wallet` (via `/v1/issuer/wallet/{wallet}`) |
 | Cross-chain reputation | TrustLayer `trustlayer-signing-1` | `wallet` |
 
@@ -129,7 +129,7 @@ An analytical split across the envelope worth naming because it clarifies how co
 | Security posture | AgentGraph | `github:owner/repo` |
 | MCP-server trust | RNWY (`rnwy-mcp-v1`) | `server` (`{owner}/{repo}`) |
 
-As of the 2026-04-10 SAR kid rotation to `sar-prod-ed25519-03`, the `counterparty` field is now inside signed bytes for new receipts, moving `settlement_witness` into the wallet-bound category for post-upgrade receipts. Legacy receipts signed under kid `-02` or `-01` remain wallet-discoverable via the `/settlement-witness/receipts?wallet={address}` transport lookup.
+Under the SAR `settlement-witness-verified-v0.2-counterparty-bound` receipt profile (kid `sar-prod-ed25519-06`), the `counterparty` field is inside signed bytes, placing `settlement_witness` in the wallet-bound category. Legacy receipts signed under kid `-02` or `-01` remain wallet-discoverable via the `/settlement-witness/receipts?wallet={address}` transport lookup.
 
 **ThoughtProof ships both shapes.** Its original `reasoning_integrity` verdict (`POST /v1/verify`, `/v1/check`) commits to a `claim_hash` (SHA-256 of a natural-language reasoning claim); the wallet does not appear in those signed bytes, which is correct for attesting the soundness of a reasoning chain — a property of the action, not the actor. As of 2026-04-11, ThoughtProof also ships a wallet-indexed variant at `GET /v1/issuer/wallet/{wallet}` (no API key) returning a `wallet_reasoning_integrity/v1` envelope with the wallet inside the signed bytes alongside `verdict`, `score_normalized`, `confidence_bps`, and supporting evidence. `NOT_FOUND` envelopes are signed too, so consumers get a verifiable answer either way. That endpoint moves the reasoning-integrity signal into the wallet-bound category for wallet-indexed lookups — hence its row in the wallet-bound table above. See §3.2 for the wallet-indexed schema.
 
@@ -613,7 +613,7 @@ Post-execution delivery attestation. Answers: was the task actually delivered as
 |----------|-------|
 | Issuer URI | `https://defaultverifier.com` |
 | Algorithm | EdDSA (Ed25519) |
-| Key ID | `sar-prod-ed25519-03` (current, shipped 2026-04-10) · `-02` / `-01` (legacy, compat) |
+| Key ID | `sar-prod-ed25519-06` (current, since the 2026-08 repair) · `-05` / `-03` / `-02` / `-01` (legacy, compat) |
 | JWKS | `https://defaultverifier.com/.well-known/jwks.json` |
 
 **Getting started:** `/attest` requires an enrolled caller key (since 2026-08-29): send it as a Bearer token with a unix-seconds timestamp and a fresh nonce on every request (the issuer keeps a replay ledger). Ask SettlementWitness for a key. `/receipts` stays public.
@@ -625,7 +625,7 @@ curl -X POST https://defaultverifier.com/settlement-witness/attest \
   -H "X-Settlement-Timestamp: $(date +%s)" \
   -H "X-Settlement-Nonce: $(openssl rand -hex 16)" \
   -H "Content-Type: application/json" \
-  -d '{"task_id":"example","spec":{"expected":"hello"},"output":{"expected":"hello"}}'
+  -d '{"task_id":"example","spec":{"checks":[{"kind":"field_equals","inputs":{"output_path":"$.status"},"expected":"ok"}]},"output":{"status":"ok"},"receipt_profile":"settlement-witness-verified-v0.2-counterparty-bound","counterparty":"{address}"}'
 
 # Wallet-indexed receipt history (signed receipts where the wallet is the counterparty)
 curl "https://defaultverifier.com/settlement-witness/receipts?wallet={address}"
@@ -633,9 +633,9 @@ curl "https://defaultverifier.com/settlement-witness/receipts?wallet={address}"
 
 Docs: [github.com/nutstrut](https://github.com/nutstrut)
 
-**Category:** wallet-discoverable content dimension — the `/attest` JWS signs the task outcome (not the counterparty wallet). The `/receipts?wallet=` endpoint provides wallet-indexed discovery over the receipt corpus. Counterparty as a first-class signed field in the core `/attest` payload is committed by nutstrut on-thread and in flight as of 2026-04-10; when it ships, SAR moves from wallet-discoverable to wallet-bound for post-upgrade receipts.
+**Category:** wallet-bound when the request names `receipt_profile: settlement-witness-verified-v0.2-counterparty-bound` (the `counterparty` lands inside the signed bytes, and rebinding the wallet invalidates the receipt); wallet-discoverable otherwise via the `/receipts?wallet=` transport lookup. Verdicts: the v0.2 deterministic evaluator needs `spec.checks[]` (`field_equals` over an `output_path`); a spec without checks returns `INDETERMINATE` / `CONDITION_NOT_EVALUABLE`. Binding and verdict are independent. The signed payload also carries an informational x402 fee notice (`requested_not_enforced`).
 
-**Signed payload fields (JWT claims, kid `sar-prod-ed25519-03`):**
+**Signed payload fields (JWT claims, kid `sar-prod-ed25519-06`):**
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -646,7 +646,7 @@ Docs: [github.com/nutstrut](https://github.com/nutstrut)
 | `ts` | string | ISO 8601 timestamp. |
 | `verifier_kid` | string | Key ID used for signing. |
 | `receipt_id` | string | `sha256:...` derived from the signed core. |
-| `counterparty` | string | Wallet address (new in kid `-03`, shipped 2026-04-10). When present, the wallet is inside signature scope — this makes `settlement_witness` a wallet-bound dimension for post-upgrade receipts. |
+| `counterparty` | string | Wallet address, inside signature scope under the `-counterparty-bound` receipt profile (first shipped with kid `-03` on 2026-04-10, dropped during the 2026-08 repair, restored 2026-09-09). Makes `settlement_witness` a wallet-bound dimension. |
 
 **Signature:** Compact JWS (JWT) with EdDSA (Ed25519).
 

@@ -33,7 +33,14 @@ const DEMO_IDS = {
   rnwy: { id: "16907", chain: "base" },
   aps: "claude-operator",
   agentgraph: "1e7b584d-2621-47a8-a314-20b9a908353a",
-  sar: { task_id: "profile-check", spec: { expected: "wallet-trust-profile" }, output: { expected: "wallet-trust-profile" } }
+  // SAR v0.2: spec.checks[] is required for a verdict (otherwise INDETERMINATE);
+  // the counterparty-bound profile keeps the wallet inside signature scope.
+  sar: {
+    task_id: "profile-check",
+    spec: { checks: [{ kind: "field_equals", inputs: { output_path: "$.status" }, expected: "ok" }] },
+    output: { status: "ok" },
+    receipt_profile: "settlement-witness-verified-v0.2-counterparty-bound"
+  }
 };
 
 /**
@@ -579,7 +586,7 @@ async function fetchSAR(chainContext) {
   return {
     issuer: data.issuer || "https://defaultverifier.com",
     type: data.type || "settlement_witness",
-    kid: data.kid || "sar-prod-ed25519-03",
+    kid: data.kid || "sar-prod-ed25519-06",
     alg: data.alg || "EdDSA",
     jwks: data.jwks || "https://defaultverifier.com/.well-known/jwks.json",
     signed: null,

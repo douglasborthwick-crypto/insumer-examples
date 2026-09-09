@@ -726,8 +726,9 @@ async function main() {
     const sar = await new Promise((resolve, reject) => {
       const postData = JSON.stringify({
         task_id: "attest-001",
-        spec: { expected: "hello" },
-        output: { expected: "hello" },
+        spec: { checks: [{ kind: "field_equals", inputs: { output_path: "$.status" }, expected: "ok" }] },
+        output: { status: "ok" },
+        receipt_profile: "settlement-witness-verified-v0.2-counterparty-bound",
       });
       const sarHeaders = { "Content-Type": "application/json" };
       if (process.env.SAR_API_KEY) {
