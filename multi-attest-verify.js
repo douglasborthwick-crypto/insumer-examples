@@ -719,7 +719,8 @@ async function main() {
     console.log("[-] AgentGraph: " + e.message);
   }
 
-  // 8. SAR (SettlementWitness) — public, no API key
+  // 8. SAR (SettlementWitness) — enrolled caller key since 2026-08-29:
+  // Bearer key + unix-seconds timestamp + fresh nonce per request (SAR_API_KEY)
   let sarAttestation;
   try {
     const sar = await new Promise((resolve, reject) => {
@@ -728,11 +729,17 @@ async function main() {
         spec: { expected: "hello" },
         output: { expected: "hello" },
       });
+      const sarHeaders = { "Content-Type": "application/json" };
+      if (process.env.SAR_API_KEY) {
+        sarHeaders["Authorization"] = "Bearer " + process.env.SAR_API_KEY;
+        sarHeaders["X-Settlement-Timestamp"] = String(Math.floor(Date.now() / 1000));
+        sarHeaders["X-Settlement-Nonce"] = crypto.randomBytes(16).toString("hex");
+      }
       const req = https.request(
         "https://defaultverifier.com/settlement-witness/attest",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: sarHeaders,
         },
         (resp) => {
           let data = "";

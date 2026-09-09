@@ -616,11 +616,14 @@ Post-execution delivery attestation. Answers: was the task actually delivered as
 | Key ID | `sar-prod-ed25519-03` (current, shipped 2026-04-10) · `-02` / `-01` (legacy, compat) |
 | JWKS | `https://defaultverifier.com/.well-known/jwks.json` |
 
-**Getting started:** No API key required. POST a task spec and output to get a signed verdict.
+**Getting started:** `/attest` requires an enrolled caller key (since 2026-08-29): send it as a Bearer token with a unix-seconds timestamp and a fresh nonce on every request (the issuer keeps a replay ledger). Ask SettlementWitness for a key. `/receipts` stays public.
 
 ```bash
 # Attest a task outcome
 curl -X POST https://defaultverifier.com/settlement-witness/attest \
+  -H "Authorization: Bearer $SAR_API_KEY" \
+  -H "X-Settlement-Timestamp: $(date +%s)" \
+  -H "X-Settlement-Nonce: $(openssl rand -hex 16)" \
   -H "Content-Type: application/json" \
   -d '{"task_id":"example","spec":{"expected":"hello"},"output":{"expected":"hello"}}'
 

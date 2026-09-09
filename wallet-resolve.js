@@ -562,9 +562,17 @@ async function fetchSAR(chainContext) {
   if (chainContext.wallet && typeof chainContext.wallet === "string") {
     body.counterparty = chainContext.wallet;
   }
+  // /attest requires an enrolled caller key (since 2026-08-29): Bearer key plus
+  // a unix-seconds timestamp and a fresh nonce per request. Set SAR_API_KEY.
+  var headers = { "Content-Type": "application/json" };
+  if (process.env.SAR_API_KEY) {
+    headers["Authorization"] = "Bearer " + process.env.SAR_API_KEY;
+    headers["X-Settlement-Timestamp"] = String(Math.floor(Date.now() / 1000));
+    headers["X-Settlement-Nonce"] = require("crypto").randomBytes(16).toString("hex");
+  }
   var data = await fetchJSON("https://defaultverifier.com/settlement-witness/attest", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: headers,
     body: JSON.stringify(body)
   });
   if (!data.jws) throw new Error("No JWS in response");
