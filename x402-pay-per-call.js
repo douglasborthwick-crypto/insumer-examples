@@ -219,13 +219,17 @@ async function main() {
   if (result.quote) {
     const usd = Number(result.quote.amount) / 1e6;
     console.log(`Quoted: $${usd.toFixed(2)} USDC on ${result.quote.network} → ${result.quote.payTo}`);
+    // `bal` is read again below, so it has to outlive the try that sets it.
+    let bal = null;
     try {
-      const bal = await usdcBalance(result.quote.network, result.quote.asset, payer);
+      bal = await usdcBalance(result.quote.network, result.quote.asset, payer);
       if (bal !== null) console.log(`Payer USDC balance: ${(Number(bal) / 1e6).toFixed(6)}`);
     } catch {
       console.log("Payer USDC balance: (public RPC unavailable — the settlement result below is what counts)");
     }
-    if (bal < BigInt(result.quote.amount)) {
+    // Only warn when the balance is known: a null from an unreachable RPC is
+    // not evidence of an empty wallet, and this line runs AFTER settlement.
+    if (bal !== null && bal < BigInt(result.quote.amount)) {
       console.log("Balance is below the quoted price — settlement will decline.");
     }
   }
