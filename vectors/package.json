@@ -1,0 +1,15 @@
+{
+  "name": "insumer-attestation-test-vectors",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frozen InsumerAPI attestation and trust-profile test vectors, with the runner and the exact verifier versions the published verdicts were produced under.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node run.mjs",
+    "check-well-known": "node check-well-known.mjs"
+  },
+  "dependencies": {
+    "@noble/post-quantum": "0.7.1",
+    "insumer-verify": "1.8.4"
+  }
+}

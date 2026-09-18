@@ -1,7 +1,11 @@
 // run.mjs: verify every vector in this directory against its stated expectation.
 //
-//   npm install insumer-verify @noble/post-quantum
+//   npm ci        # exactly the versions pinned in package.json, from the lockfile
 //   node run.mjs
+//
+// Use npm ci rather than npm install: `npm install insumer-verify @noble/post-quantum`
+// rewrites the pinned versions in package.json into caret ranges, and the verdicts below
+// depend on the version.
 //
 // Exit 0 = every vector produced exactly the expected result. Exit 1 = at least
 // one did not. A vector that "fails" here means either the verifier is wrong or

@@ -1,30 +1,88 @@
 # InsumerAPI attestation test vectors
 
-Twenty-three vectors: twenty-one attestations and two trust profiles issued by InsumerAPI, saved
-exactly as the API returned them, each paired with the result a correct verifier must produce.
-Eleven of them are deliberately corrupted, mislabelled or presented under conditions that must be
-refused, and one more (22) is mislabelled in a way a verifier must report without refusing.
+Twenty-three vectors: twenty-one attestations and two trust profiles, each paired with the result
+a correct verifier must produce.
+
+Eleven are issuer responses saved exactly as the API returned them: 01 to 07, 12, 13, 17 and 18.
+The other twelve are derived from those. Eleven of the twelve carry a deliberate edit to the signed
+bytes or to the labelling around them (08, 09, 10, 11, 14, 15, 19, 20, 21, 22 and 23), and the
+twelfth, 16, is byte-identical to vector 01 and differs only in the verifier options it is
+presented under. The derived cases are the point of the set: a corpus where everything passes
+demonstrates very little, and the question a verifier has to answer correctly is which artifacts
+it refuses.
 
 ```bash
-npm install insumer-verify @noble/post-quantum
+npm ci          # installs exactly the pinned versions below, from the lockfile
 node run.mjs
+node check-well-known.mjs   # optional: compares the discovery copy served at insumermodel.com
 ```
 
-`@noble/post-quantum` is what lets the verifier check the ML-DSA-65 companion. Without it the
-companion is reported as `unverifiable` rather than `verified`, so vectors 12, 13 and 17 will not
-match their expectations, and vector 14 (a tampered companion) can no longer be refuted. The
-runner needs `insumer-verify` 1.8.3 or later. 1.8.0 reports the companion on attestations but not
-on trust profiles, and 1.8.0 and 1.8.1 accept the missing kid of vector 19 and report the
-mislabelled companion of vector 22 as verified; the kid rules those vectors exercise arrived in
-1.8.2.
+Use `npm ci`, not `npm install`. `npm install insumer-verify @noble/post-quantum` rewrites the
+exact versions in `package.json` into caret ranges, which silently undoes the pinning this
+directory depends on.
 
 `run.mjs` exits 0 only if every vector produces exactly its stated expectation.
+
+## What a passing run establishes, and under which versions
+
+`run.mjs` verifies with `insumer-verify`, the reference verifier published by the same issuer that
+produced these artifacts. A 23/23 result is therefore the issuer's verifier agreeing with the
+issuer's own stated expectations. It is not an independent confirmation, and it is not offered as
+one. What the set gives a third party is everything needed to disagree: the bytes, the options, the
+expected verdicts and the reasoning behind each are all published here, so an independent verifier
+can be written against them and can contradict any of it.
+
+The verdicts depend on the verifier version, so the versions the published verdicts were produced
+under are pinned in `package.json` in this directory, with a lockfile:
+
+| Package | Version |
+|---|---|
+| `insumer-verify` | 1.8.4 |
+| `@noble/post-quantum` | 0.7.1 |
+
+`@noble/post-quantum` is what lets the verifier check the ML-DSA-65 companion. Without it every
+companion is reported as `unverifiable`, and six vectors stop matching their expectations: 12, 13,
+17 and 18, whose companions should verify, and 14 and 21, whose companions should be refuted. The
+other companion cases are unaffected because they already expect something other than a verified or
+refuted companion. A run missing the library reports 17/23 rather than failing loudly, which is why
+it is a pinned dependency here rather than an optional extra.
+
+Earlier verifiers disagree with the stated expectations, which is the reason the versions are
+pinned rather than a caveat on them: 1.8.0 reports the companion on attestations but not on trust
+profiles, and 1.8.0 and 1.8.1 accept the missing `kid` of vector 19 and report the mislabelled
+companion of vector 22 as verified. The kid rules those two vectors exercise arrived in 1.8.2.
+
+## The key material these verdicts were produced against
+
+Twelve vectors, 11 to 22, carry a `jwksUrl` and resolve their keys over the network when they run.
+The other eleven verify against the public key built into `insumer-verify` and fetch nothing.
+
+The signed bytes here are frozen; the key set they resolve against is not. `jwks-2026-09-18.json`
+is the JWKS as served on 2026-09-18, saved byte for byte:
+
+```
+sha256  506d8ee2b056c65d4267237209b1802e3376bd5e3b08e988158bdacb9fc7a244
+```
+
+It carries five entries over two keys: `insumer-attest-v1`, `insumer-attest-v2` and
+`insumer-trust-v2` on one P-256 key, then the two RFC 9964 `AKP` entries `insumer-attest-pq1` and
+`insumer-trust-pq1` on one ML-DSA-65 key. Those are the keys every positive verdict in this set was
+produced against. Two of the negative cases depend on the same snapshot in the opposite direction:
+vector 11 names `insumer-attest-v9` and vector 15 names `insumer-attest-pq9`, neither of which
+resolves to anything in it, so those two hold only for as long as no key by either name is
+published. Vector 23 names `insumer-attest-v9` as well but fetches nothing, so it depends on the
+key built into `insumer-verify` rather than on this snapshot.
+
+If a `kid` used here is ever rotated out of the live JWKS, a run against the live endpoint will
+stop matching these expectations while the frozen bytes remain exactly as valid as they were. This
+snapshot is the record of what they were checked against: serve it locally and point the `jwksUrl`
+of the affected vectors at it to reproduce the published verdicts after such a rotation.
 
 ## What each vector contains
 
 | Field | Meaning |
 |---|---|
-| `response` | The API response, verbatim. Nothing reformatted, reordered or trimmed. |
+| `response` | The artifact as the verifier receives it. On the eleven issuer responses it is the API response verbatim, nothing reformatted, reordered or trimmed. On the eleven edited derivations it is that response carrying the single deliberate edit its row names. On 16 it is vector 01's response unchanged, since that vector varies the options rather than the bytes. |
 | `recompute` | For each result: the canonical `evaluatedCondition` byte string, the claimed `conditionHash`, whether the hash reproduces from those bytes, and the chain anchor. |
 | `options` | The verifier options this vector is evaluated under. Pinned per vector, because a verdict is a function of the input and the options together. |
 | `expected` | The five verdicts a correct verifier must produce (signature, condition hashes, freshness, expiry, post-quantum companion), the companion's status (`verified`, `refuted`, `absent`, `unverifiable`), and where relevant the `pass` and per-result `met` values. A trust-profile vector has four verdicts (there are no condition hashes to check on the trust path) and an `expected.trust` block naming the summary counts and the checks that carry the not-evaluated marker. |
@@ -57,10 +115,27 @@ mislabelled companion of vector 22 as verified; the kid rules those vectors exer
 | 22 | 12 with its `pqKid` changed to `insumer-trust-pq1`, the companion kid for trust profiles | classical checks pass, companion `unverifiable`, not refused |
 | 23 | 01 with an unknown `kid`, to a verifier given no JWKS URL | signature fails, hash still passes, never falls back to a key at hand |
 
-Vectors 08 to 11 and 19 to 23 are the point. A set where everything passes demonstrates very
-little; the question a verifier has to answer correctly is which artifacts it refuses.
+## Which of them a verifier must refuse
 
-Three of them are chosen to be hard to pass by accident:
+Every vector here expects `expiry: false`, because every published vector is past its freshness
+window, so that verdict does not separate them; the section below explains why it is expected. The
+eleven a correct verifier must refuse are the ones carrying at least one expected `false` in
+`checks` other than `expiry`:
+
+```
+08  09  10  11  14  15  16  19  20  21  23
+```
+
+Within those eleven, 14, 15 and 16 fail only at `checks.pq`, while 11, 19 and 21 fail at both the
+classical and the companion layer. Vector 22 is not among them: outside `expiry` it carries no
+expected `false`, and its companion reports `unverifiable`, which is reported without refusing the
+artifact.
+
+The predicate excludes `attestation.pass` deliberately. A signed `false` there is a verdict about
+the wallet, not a verification failure. Vectors 02 and 05 expect `pass: false` and are fully valid
+artifacts, correctly signed and correctly reporting that a condition was not met.
+
+Three of the derived cases are chosen to be hard to pass by accident:
 
 - **09** breaks the signature without touching the condition, so a verifier that collapses
   signature failure and hash integrity into one boolean gets the hash answer wrong.
@@ -88,7 +163,11 @@ scheme, and an artifact type, and a verifier has to honour all three:
   companion is `unverifiable`: a mislabelled companion is evidence of nothing, and it is never
   re-interpreted under the kid the verifier expected. Without a `pqRequiredFrom` cutoff that is
   reported and not refused; under a cutoff that has passed it fails, as vector 15 does.
-- **23** is vector 11 without the JWKS fetch. The verifier has been given no JWKS URL and holds
+- **23** is vector 11 without the JWKS fetch, which is also why the two expect different verdicts
+  from identical signed bytes. On 11 the verifier is given a JWKS, fetches it, finds no key for the
+  `kid` and fails closed on every check. On 23 it was given no JWKS URL, so it never fetches: it
+  reports the signature unverifiable against the key it holds and still completes the hash and
+  freshness checks, which do not depend on key resolution. The verifier has been given no JWKS URL and holds
   a built-in key; the `kid` names no key it knows. It must still fail, and it must fail as
   could-not-verify rather than as forged: nothing about the signature has been shown wrong, the
   verifier simply has no key or scheme it is entitled to check it under. On the classical
@@ -136,7 +215,10 @@ signals recomputable rather than merely signed.
 
 Every verdict in this set was re-derived from chain state before publication, read at the
 anchored block rather than at the chain tip. For vector 07 the anchor's block hash was also
-checked against the block at that height.
+checked against the block at that height. That re-derivation is an issuer statement about how
+these were produced rather than something this corpus lets you check; what the corpus does let
+you check is the signature, the condition hash and the anchor, and it carries the two inputs
+needed to repeat the state read yourself.
 
 Two things follow that a checker should expect. Balances at these addresses change after the
 anchor, so a reading taken today will not match the anchored block. And repeating the reads
@@ -154,7 +236,9 @@ families follow the same pattern: `slot` on Solana, `ledgerIndex` with `ledgerHa
 and Stellar, `checkpointSequence` on Sui. The six marker checks on vectors 18 and 21 carry no
 anchor at all, because no chain was read for them; a freshness check skips them.
 
-Every vector except 13 and 19 is signed under the v2 scheme: attestations under
+Every vector except 13 and 19 is signed under the v2 scheme, though for different reasons in the
+two exceptions: 13 is genuinely v1-signed, while 19 has had its `kid` removed and so selects no
+scheme at all. The rest are v2: attestations under
 `insumer-attest-v2`, and the trust profiles under `insumer-trust-v2`, whose preimage is the
 tag `insumer.trust.v2`, a newline, and the canonical JSON of the whole trust object with
 `expiresAt` inside it. Vector 13 is signed under the v1 scheme (the frozen bare-JSON preimage
@@ -163,8 +247,10 @@ rollout still sign v1 and remain verifiable unchanged; that is a live path rathe
 historical one. A verifier that implements only v2 passes every other vector here and fails
 vector 13, which the specification requires it to select by `kid`.
 
-Vectors 12 to 17, 19 and 22 exercise the post-quantum companion (spec Section 12, Check 6). Its verdict is
-reported separately from the classical checks: `refuted` always fails the artifact; `absent` and
+Nine vectors carry a post-quantum companion: 12, 13, 14, 15, 17, 18, 19, 21 and 22. The rest
+exercise the companion rules without carrying one, reporting `absent`, or `unverifiable` on 11
+where nothing resolves at all. Its verdict is reported separately from the classical checks (spec
+Section 12, Check 6): `refuted` always fails the artifact; `absent` and
 `unverifiable` fail only under the verifier's own `pqRequiredFrom` cutoff, judged by the
 verifier's clock, never by a timestamp inside the artifact.
 
@@ -179,9 +265,13 @@ carries booleans and counts, never balances.
 
 ## The envelope fixtures
 
-`envelope/` holds fixtures for the multi-attestation envelope in `MULTI-ATTESTATION-SPEC.md`.
+`envelope/` holds eight fixtures for the multi-attestation envelope in `MULTI-ATTESTATION-SPEC.md`.
 Those test composition, whether one bad entry changes another entry's verdict, rather than
 whether a single attestation is genuine.
+
+`check-well-known.mjs` compares this directory against the discovery copy served at
+`insumermodel.com/.well-known/state-attestation-test-vectors.json`, field by field on everything
+signed, so the two cannot drift apart unnoticed. This directory is the authority if they ever do.
 
 ## Regenerating
 
