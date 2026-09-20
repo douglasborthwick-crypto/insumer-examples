@@ -1,12 +1,12 @@
 # InsumerAPI attestation test vectors
 
-Twenty-three vectors: twenty-one attestations and two trust profiles, each paired with the result
+Twenty-five vectors: twenty-three attestations and two trust profiles, each paired with the result
 a correct verifier must produce.
 
 Eleven are issuer responses saved exactly as the API returned them: 01 to 07, 12, 13, 17 and 18.
-The other twelve are derived from those. Eleven of the twelve carry a deliberate edit to the signed
-bytes or to the labelling around them (08, 09, 10, 11, 14, 15, 19, 20, 21, 22 and 23), and the
-twelfth, 16, is byte-identical to vector 01 and differs only in the verifier options it is
+The other fourteen are derived from those. Thirteen of the fourteen carry a deliberate edit to the
+signed bytes or to the labelling around them (08, 09, 10, 11, 14, 15, 19, 20, 21, 22, 23, 24 and
+25), and the fourteenth, 16, is byte-identical to vector 01 and differs only in the verifier options it is
 presented under. The derived cases are the point of the set: a corpus where everything passes
 demonstrates very little, and the question a verifier has to answer correctly is which artifacts
 it refuses.
@@ -26,7 +26,7 @@ directory depends on.
 ## What a passing run establishes, and under which versions
 
 `run.mjs` verifies with `insumer-verify`, the reference verifier published by the same issuer that
-produced these artifacts. A 23/23 result is therefore the issuer's verifier agreeing with the
+produced these artifacts. A 25/25 result is therefore the issuer's verifier agreeing with the
 issuer's own stated expectations. It is not an independent confirmation, and it is not offered as
 one. What the set gives a third party is everything needed to disagree: the bytes, the options, the
 expected verdicts and the reasoning behind each are all published here, so an independent verifier
@@ -37,30 +37,33 @@ under are pinned in `package.json` in this directory, with a lockfile:
 
 | Package | Version |
 |---|---|
-| `insumer-verify` | 1.8.4 |
+| `insumer-verify` | 1.8.6 |
 | `@noble/post-quantum` | 0.7.1 |
 
 `@noble/post-quantum` is what lets the verifier check the ML-DSA-65 companion. Without it every
-companion is reported as `unverifiable`, and six vectors stop matching their expectations: 12, 13,
-17 and 18, whose companions should verify, and 14 and 21, whose companions should be refuted. The
+companion is reported as `unverifiable`, and eight vectors stop matching their expectations: 12, 13,
+17 and 18, whose companions should verify, and 14, 21, 24 and 25, whose companions should be refuted. The
 other companion cases are unaffected because they already expect something other than a verified or
-refuted companion. A run missing the library reports 17/23 rather than failing loudly, which is why
+refuted companion. A run missing the library reports 17/25 rather than failing loudly, which is why
 it is a pinned dependency here rather than an optional extra.
 
 Earlier verifiers disagree with the stated expectations, which is the reason the versions are
 pinned rather than a caveat on them: 1.8.0 reports the companion on attestations but not on trust
 profiles, and 1.8.0 and 1.8.1 accept the missing `kid` of vector 19 and report the mislabelled
 companion of vector 22 as verified. The kid rules those two vectors exercise arrived in 1.8.2.
+Releases before 1.8.6 report the companions of vectors 24 and 25 as verified: they bound a `pqJwt`
+to its `jwt` by `jti`, `exp` and `pass`, and the binding of the full claim set that those two
+vectors exercise arrived in 1.8.6.
 
-Later verifiers agree. The pin stays at the version the published verdicts were produced under, so
-this table is a record rather than a recommendation, but the expectations were re-run against
-`insumer-verify` 1.8.5 on 2026-09-20 and all 23 still matched. 1.8.5 adds a 128-level bound on
-canonicalization depth (`MAX_CANONICAL_DEPTH`); no vector here nests past 9, so none of them meets
-it.
+The pin is the version the published verdicts were produced under, so this table is a record
+rather than a recommendation. It moved from 1.8.4 to 1.8.6 on 2026-09-20, when vectors 24 and 25
+were added, because those two need 1.8.6. Vectors 01 to 23 produce the same verdicts under 1.8.4,
+1.8.5 and 1.8.6. 1.8.5 adds a 128-level bound on canonicalization depth (`MAX_CANONICAL_DEPTH`); no
+vector here nests past 9, so none of them meets it.
 
 ## The key material these verdicts were produced against
 
-Twelve vectors, 11 to 22, carry a `jwksUrl` and resolve their keys over the network when they run.
+Fourteen vectors, 11 to 22 plus 24 and 25, carry a `jwksUrl` and resolve their keys over the network when they run.
 The other eleven verify against the public key built into `insumer-verify` and fetch nothing.
 
 The signed bytes here are frozen; the key set they resolve against is not. `jwks-2026-09-18.json`
@@ -88,7 +91,7 @@ of the affected vectors at it to reproduce the published verdicts after such a r
 
 | Field | Meaning |
 |---|---|
-| `response` | The artifact as the verifier receives it. On the eleven issuer responses it is the API response verbatim, nothing reformatted, reordered or trimmed. On the eleven edited derivations it is that response carrying the single deliberate edit its row names. On 16 it is vector 01's response unchanged, since that vector varies the options rather than the bytes. |
+| `response` | The artifact as the verifier receives it. On the eleven issuer responses it is the API response verbatim, nothing reformatted, reordered or trimmed. On the thirteen edited derivations it is that response carrying the single deliberate edit its row names. On 16 it is vector 01's response unchanged, since that vector varies the options rather than the bytes. |
 | `recompute` | For each result: the canonical `evaluatedCondition` byte string, the claimed `conditionHash`, whether the hash reproduces from those bytes, and the chain anchor. |
 | `options` | The verifier options this vector is evaluated under. Pinned per vector, because a verdict is a function of the input and the options together. |
 | `expected` | The five verdicts a correct verifier must produce (signature, condition hashes, freshness, expiry, post-quantum companion), the companion's status (`verified`, `refuted`, `absent`, `unverifiable`), and where relevant the `pass` and per-result `met` values. A trust-profile vector has four verdicts (there are no condition hashes to check on the trust path) and an `expected.trust` block naming the summary counts and the checks that carry the not-evaluated marker. |
@@ -120,20 +123,22 @@ of the affected vectors at it to reproduce the published verdicts after such a r
 | 21 | 18 presented under `insumer-attest-v2`, the kid that signs attestations | signature fails, companion `refuted` |
 | 22 | 12 with its `pqKid` changed to `insumer-trust-pq1`, the companion kid for trust profiles | classical checks pass, companion `unverifiable`, not refused |
 | 23 | 01 with an unknown `kid`, to a verifier given no JWKS URL | signature fails, hash still passes, never falls back to a key at hand |
+| 24 | 17 with the `sub` claim inside `jwt` changed, the `pqJwt` beside it untouched | signature fails, hash still passes, companion `refuted` |
+| 25 | 17 with `results[0].met` inverted inside `jwt`, the `pqJwt` beside it untouched | signature fails, hash still passes, companion `refuted` |
 
 ## Which of them a verifier must refuse
 
 Every vector here expects `expiry: false`, because every published vector is past its freshness
 window, so that verdict does not separate them; the section below explains why it is expected. The
-eleven a correct verifier must refuse are the ones carrying at least one expected `false` in
+thirteen a correct verifier must refuse are the ones carrying at least one expected `false` in
 `checks` other than `expiry`:
 
 ```
-08  09  10  11  14  15  16  19  20  21  23
+08  09  10  11  14  15  16  19  20  21  23  24  25
 ```
 
-Within those eleven, 14, 15 and 16 fail only at `checks.pq`, while 11, 19 and 21 fail at both the
-classical and the companion layer. Vector 22 is not among them: outside `expiry` it carries no
+Within those thirteen, 14, 15 and 16 fail only at `checks.pq`, while 11, 19, 21, 24 and 25 fail at
+both the classical and the companion layer. Vector 22 is not among them: outside `expiry` it carries no
 expected `false`, and its companion reports `unverifiable`, which is reported without refusing the
 artifact.
 
@@ -150,6 +155,24 @@ Three of the derived cases are chosen to be hard to pass by accident:
 - **11** must fail rather than fall back to another key in the JWKS. A verifier that selects
   the first key when the `kid` matches nothing will happily check an unknown or forged `kid`
   against whichever key is listed first. `insumer-verify` has refused this from 1.7.0 onward.
+
+Vectors 24 and 25 are about what a `pqJwt` vouches for. In the JWT format the companion is a
+second compact JWS carrying the same claims as `jwt`, and a verifier binds the two by the full
+claim set: the same member names, and for every member a deeply equal value. Both vectors take
+the genuine pair of vector 17, edit one claim inside `jwt`, and leave the ES256 signature segment
+and the whole `pqJwt` byte-identical to vector 17:
+
+- **24** changes `sub`, the wallet the attestation is about.
+- **25** inverts `results[0].met` and leaves `pass`, `jti`, `exp` and `sub` alone, so a verifier
+  that compares a handful of top-level claims sees nothing different.
+
+On both, the ES256 signature fails, which is the edit being caught at the classical layer. The
+companion verdict is the point: the `pqJwt` still verifies under its own key, since nothing in
+it was touched, and it must be reported `refuted` all the same, because it did not sign the
+claims the `jwt` beside it now carries. A companion is worth having only if its verdict stays
+right when the classical one cannot be relied on, and a relying party reads `sub` and `results`
+from the `jwt`. Comparison is by parsed value, never by bytes: two serializers may order members
+differently, and a genuine pair must not be refused for that.
 
 Vectors 19 to 23 are about what a `kid` is allowed to do. A `kid` selects a key, a signing
 scheme, and an artifact type, and a verifier has to honour all three:
