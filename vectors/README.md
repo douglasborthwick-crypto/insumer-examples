@@ -276,7 +276,7 @@ rollout still sign v1 and remain verifiable unchanged; that is a live path rathe
 historical one. A verifier that implements only v2 passes every other vector here and fails
 vector 13, which the specification requires it to select by `kid`.
 
-Nine vectors carry a post-quantum companion: 12, 13, 14, 15, 17, 18, 19, 21 and 22. The rest
+Eleven vectors carry a post-quantum companion: 12, 13, 14, 15, 17, 18, 19, 21, 22, 24 and 25. The rest
 exercise the companion rules without carrying one, reporting `absent`, or `unverifiable` on 11
 where nothing resolves at all. Its verdict is reported separately from the classical checks (spec
 Section 12, Check 6): `refuted` always fails the artifact; `absent` and
