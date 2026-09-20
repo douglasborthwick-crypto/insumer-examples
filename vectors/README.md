@@ -52,6 +52,12 @@ pinned rather than a caveat on them: 1.8.0 reports the companion on attestations
 profiles, and 1.8.0 and 1.8.1 accept the missing `kid` of vector 19 and report the mislabelled
 companion of vector 22 as verified. The kid rules those two vectors exercise arrived in 1.8.2.
 
+Later verifiers agree. The pin stays at the version the published verdicts were produced under, so
+this table is a record rather than a recommendation, but the expectations were re-run against
+`insumer-verify` 1.8.5 on 2026-09-20 and all 23 still matched. 1.8.5 adds a 128-level bound on
+canonicalization depth (`MAX_CANONICAL_DEPTH`); no vector here nests past 9, so none of them meets
+it.
+
 ## The key material these verdicts were produced against
 
 Twelve vectors, 11 to 22, carry a `jwksUrl` and resolve their keys over the network when they run.
