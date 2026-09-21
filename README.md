@@ -96,7 +96,7 @@ Note on key versions: every newly created key is **v2** — thresholds go in as 
 ## Three Ways to Authenticate
 
 1. **API key** (default) — `X-API-Key` header. Free tier in one call via `POST /v1/keys/create`.
-2. **x402 pay-per-call** (no key at all) — call `POST /v1/attest`, `/v1/trust`, or `/v1/trust/batch` with no credential headers and you get a 402 quote instead of a 401. The quote lists one accept per settlement network — USDC on Base, Polygon, Arbitrum, or Solana, same price on each. Pay the quoted amount on the network you choose and retry with the `PAYMENT-SIGNATURE` header (`X-PAYMENT`, the v1 name, is still accepted). Gasless for the payer, zero signup — the fastest path for an autonomous agent. Dynamic pricing: $0.05–0.10 per attest, $0.15–0.30 per trust profile, $0.15–3.00 per batch. Runnable client: [x402-pay-per-call.js](x402-pay-per-call.js).
+2. **x402 pay-per-call** (no key at all) — call `POST /v1/attest`, `/v1/trust`, or `/v1/trust/batch` with no credential headers and you get a 402 quote instead of a 401. The quote lists one accept per settlement network — USDC on Base, Polygon, Arbitrum, Arc, or Solana, same price on each. Pay the quoted amount on the network you choose, signing under the EIP-712 domain that entry's `extra` quotes (the token's name is `USD Coin` on Base, Polygon and Arbitrum, `USDC` on Arc), and retry with the `PAYMENT-SIGNATURE` header (`X-PAYMENT`, the v1 name, is still accepted). Gasless for the payer, zero signup — the fastest path for an autonomous agent. Dynamic pricing: $0.05–0.10 per attest, $0.15–0.30 per trust profile, $0.15–3.00 per batch. Runnable client: [x402-pay-per-call.js](x402-pay-per-call.js).
 3. **Wallet-signed (SIWE)** — `Authorization: Wallet <base64(JSON({message, signature}))>` from a wallet that holds the Insumer Access pass (soulbound ERC-721 on Base, `0x3E2a408cc6eceba04FF9d04A5B8B05aBa8DD50ce`). Wallet-native keys with no email via `POST /v1/keys/buy`. Drop-in middleware: [`@skyemeta/access`](https://www.npmjs.com/package/@skyemeta/access) on npm.
 
 ## What Wallet Auth Covers
@@ -245,7 +245,7 @@ Verification costs: 1 credit per attest (2 with `proof: "merkle"`), 3 per trust 
 
 Beyond the card tiers:
 
-- **x402 pay-per-call** — no key, no signup; USDC on Base, Polygon, Arbitrum, or Solana per call (see [Three Ways to Authenticate](#three-ways-to-authenticate))
+- **x402 pay-per-call** — no key, no signup; USDC on Base, Polygon, Arbitrum, Arc, or Solana per call (see [Three Ways to Authenticate](#three-ways-to-authenticate))
 - **Crypto credit top-ups** — `POST /v1/credits/buy` with USDC, USDT, or BTC; volume-priced from 25 credits/$1 ($5–99) up to 50 credits/$1 ($500+)
 - **Prepaid crypto keys** — `POST /v1/keys/purchase`: 30-day Pro or Enterprise keys paid in USDC/USDT/BTC, no card
 - **Wallet-native keys** — `POST /v1/keys/buy`: the sender wallet is the identity, no email needed

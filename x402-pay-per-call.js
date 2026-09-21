@@ -3,7 +3,7 @@
  *
  * Call POST /v1/attest with NO API key and no signup: the API answers with an
  * x402 402 quote listing one accept per settlement network (USDC on Base,
- * Polygon, Arbitrum, or Solana), you sign an EIP-3009 USDC authorization on
+ * Polygon, Arbitrum, Arc, or Solana), you sign an EIP-3009 USDC authorization on
  * the EVM network you choose, retry with the PAYMENT-SIGNATURE header, and get
  * back a signed attestation. Gasless for the payer — the settlement
  * transaction is submitted by the facilitator, not you. (For Solana, use the
@@ -20,10 +20,12 @@
  *      first, all at the same amount (priced for the body you sent, so a
  *      proof:"merkle" body is quoted at double). Pick a network; this example
  *      takes the first EVM entry (Base) unless X402_NETWORK names another,
- *      e.g. X402_NETWORK=eip155:137 for Polygon.
+ *      e.g. X402_NETWORK=eip155:137 for Polygon or eip155:5042 for Arc.
  *   2. Sign TransferWithAuthorization (EIP-3009) for EXACTLY the quoted
  *      amount under that entry's EIP-712 domain — overpayment is rejected,
- *      not kept.
+ *      not kept. The domain differs by network (the token's name is
+ *      "USD Coin" on Base, Polygon and Arbitrum, "USDC" on Arc), so it is
+ *      read from the quote's `extra`, never hardcoded.
  *   3. Retry with PAYMENT-SIGNATURE: base64 of the x402 v2 PaymentPayload.
  *      (The v1 header name X-PAYMENT is still accepted.)
  *   4. 200 → signed attestation + a PAYMENT-RESPONSE header (also sent as
@@ -31,10 +33,9 @@
  *      the attestation offline via JWKS.
  *
  * Notes that save debugging time:
- *   - Pay-per-call attest is capped at 2 conditions per request. Larger
- *     requests need an API key.
+ *   - Pay-per-call attest is capped at 10 conditions per request.
  *   - `validBefore` may be at most 10 minutes out; the quote's
- *     maxTimeoutSeconds (60s) is a safe window.
+ *     maxTimeoutSeconds (60s; 20s on Arc) is a safe window.
  *   - The authorization nonce is single-use per payer. A replay with the same
  *     nonce is rejected even before settlement.
  *
@@ -50,15 +51,16 @@
  */
 
 const { createPublicClient, http } = require("viem");
-const { base, polygon, arbitrum } = require("viem/chains");
+const { base, polygon, arbitrum, arc } = require("viem/chains");
 const { privateKeyToAccount, generatePrivateKey } = require("viem/accounts");
 
 const API = "https://api.insumermodel.com";
 
 /**
  * Read the payer's USDC balance on the quoted network (public RPC, no key).
- * Purely a preflight nicety: the facilitator reports an unfunded authorization
- * as `invalid_payload` (the transfer simulation reverts), which is cryptic —
+ * Purely a preflight nicety: an unfunded authorization is refused with a
+ * facilitator reason code (`invalid_payload` on some networks, where the
+ * transfer simulation reverts; `insufficient_funds` on Arc), which is cryptic —
  * checking first gives a clear message instead.
  * @param {string} network - CAIP-2 network from the quote, e.g. "eip155:8453"
  * @param {string} usdcAddress - the USDC contract from the quote
@@ -70,6 +72,9 @@ async function usdcBalance(network, usdcAddress, payer) {
     "eip155:8453": { chain: base, url: "https://mainnet.base.org" },
     "eip155:137": { chain: polygon, url: "https://1rpc.io/matic" },
     "eip155:42161": { chain: arbitrum, url: "https://arb1.arbitrum.io/rpc" },
+    // Arc's USDC is the chain's own asset; the quoted `asset` is its ERC-20
+    // face, which answers balanceOf in the usual 6 decimals.
+    "eip155:5042": { chain: arc, url: "https://rpc.mainnet.arc.io" },
   }[network];
   if (!rpc) return null;
   const pub = createPublicClient({ chain: rpc.chain, transport: http(rpc.url) });
@@ -248,8 +253,8 @@ async function main() {
   } else {
     const msg = (result.body && result.body.error) || result.body;
     console.log(`\nNot settled (HTTP ${result.status}): ${typeof msg === "string" ? msg : JSON.stringify(msg)}`);
-    console.log("(An unfunded wallet's authorization is reported as invalid_payload —");
-    console.log("the facilitator's transfer simulation reverts on a zero balance.)");
+    console.log("(An unfunded wallet's authorization is refused with a facilitator reason code:");
+    console.log("invalid_payload where the transfer simulation reverts, insufficient_funds on Arc.)");
     console.log("Fund the payer wallet with USDC on the quoted network and re-run to see a real settlement.");
   }
 }
