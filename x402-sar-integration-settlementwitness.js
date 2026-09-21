@@ -145,8 +145,8 @@ async function main() {
   console.log(`  Note: when agent_id maps to a stable wallet address,`);
   console.log(`  call POST ${API}/v1/trust with a JSON body { "wallet": WALLET } before transacting`);
   console.log(`  to pull a full trust profile: stablecoins, governance tokens,`);
-  console.log(`  NFTs, staking and institutional stablecoins across 25 chains`);
-  console.log(`  (up to 27 with optional non-EVM wallets).`);
+  console.log(`  NFTs, staking and institutional stablecoins across 26 chains`);
+  console.log(`  (up to 28 with optional non-EVM wallets).`);
   console.log(`  Pre-transaction trust profile + post-transaction SAR receipt`);
   console.log(`  gives both sides of the picture.\n`);
 
