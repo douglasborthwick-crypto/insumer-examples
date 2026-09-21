@@ -1,7 +1,7 @@
 {
   "vector": "07-non-evm-anchor-bitcoin",
   "description": "A non-EVM chain: native BTC, gte 1, on the Bitcoin genesis address.",
-  "note": "The anchor is blockHeight and blockHash, not blockNumber, and chainId is the string \"bitcoin\" rather than a number. A verifier that assumes blockNumber will find no anchor here. Verified independently: the blockHash matches the block at that height, and the balance at that block met the threshold.",
+  "note": "The anchor is blockHeight and blockHash, not blockNumber, and chainId is the string \"bitcoin\" rather than a number. A verifier that assumes blockNumber will find no anchor here. Verified independently: the blockHash matches the block at that height, and the balance at that block met the threshold. The anchor itself is a tip marker: it binds the observation to a recent block and does not name the state that was read.",
   "options": {},
   "recompute": [
     {
