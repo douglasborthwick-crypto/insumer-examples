@@ -7,8 +7,8 @@
  * 3. Multi-condition (SUI + USDC in one call)
  * 4. Trust profile with Sui institutional dimension (requires EVM wallet + suiWallet)
  *
- * Sui contracts use fully-qualified type strings as `contractAddress`
- * (e.g. "0xdba34672...::usdc::USDC").
+ * Sui conditions take a coin type (`address::module::Name`) as `contractAddress`:
+ * "0x2::sui::SUI" for native SUI, "0xdba34672...::usdc::USDC" for USDC.
  *
  * Usage:
  *   INSUMER_API_KEY=insr_live_... node verify-sui.js
@@ -29,7 +29,9 @@ if (!KEY) {
 
 const headers = { "Content-Type": "application/json", "X-API-Key": KEY };
 
-// Well-known Sui token type strings
+// Well-known Sui coin type strings. Native SUI is a coin type too: the string
+// "native" is not accepted on Sui.
+const SUI_NATIVE = "0x2::sui::SUI";
 const USDC_SUI = "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC";
 
 // Demo wallet — Sui Foundation address `0x5` (always has SUI + USDC).
@@ -101,7 +103,7 @@ async function main() {
       conditions: [
         {
           type: "token_balance",
-          contractAddress: "native",
+          contractAddress: SUI_NATIVE,
           chainId: "sui",
           threshold: "1",
           label: "SUI >= 1",
@@ -121,7 +123,6 @@ async function main() {
           contractAddress: USDC_SUI,
           chainId: "sui",
           threshold: "1",
-          decimals: 6,
           label: "USDC on Sui >= 1",
         },
       ],
@@ -136,7 +137,7 @@ async function main() {
       conditions: [
         {
           type: "token_balance",
-          contractAddress: "native",
+          contractAddress: SUI_NATIVE,
           chainId: "sui",
           threshold: "1",
           label: "SUI >= 1",
@@ -146,7 +147,6 @@ async function main() {
           contractAddress: USDC_SUI,
           chainId: "sui",
           threshold: "1",
-          decimals: 6,
           label: "USDC >= 1",
         },
       ],

@@ -100,7 +100,7 @@ const BASELINE_CONDITION = {
 };
 
 /**
- * 1. InsumerAPI (foundation) — reads wallet state across 38 chains.
+ * 1. InsumerAPI (foundation): reads wallet state across 37 chains.
  *
  * Two calls, deliberately:
  *   /v1/trust  — discovers chain activity. Its signature is NOT put in the

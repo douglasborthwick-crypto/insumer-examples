@@ -112,7 +112,7 @@ interface IERC165 {
 ///        headers: {"X-API-Key": "<your_key>"}
 ///        body: {"wallet": "0x...", "conditions": [{"type":"token_balance",
 ///               "contractAddress":"0x...", "chainId": 1, "threshold": "1",
-///               "decimals": 6, "label": "USDC >= 1 on Ethereum"}]}
+///               "label": "USDC >= 1 on Ethereum"}]}
 ///
 ///      Decode the response into the seven-tuple `data` payload (see
 ///      IWalletStateAttestation.sol for the layout) and pass it to

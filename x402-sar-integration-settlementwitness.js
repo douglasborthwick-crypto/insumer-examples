@@ -45,7 +45,6 @@ const CONDITIONS = [
     contractAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     chainId: 8453,
     threshold: "1",
-    decimals: 6,
     label: "USDC on Base",
   },
 ];
@@ -144,9 +143,10 @@ async function main() {
   console.log(`  JWT: ${jwt.substring(0, 40)}...`);
   console.log(`  Agent: ${AGENT_ID}\n`);
   console.log(`  Note: when agent_id maps to a stable wallet address,`);
-  console.log(`  call GET ${API}/v1/trust?wallet=WALLET before transacting`);
+  console.log(`  call POST ${API}/v1/trust with a JSON body { "wallet": WALLET } before transacting`);
   console.log(`  to pull a full trust profile: stablecoins, governance tokens,`);
-  console.log(`  NFTs, staking across 21 EVM chains, Solana, and XRPL.`);
+  console.log(`  NFTs, staking and institutional stablecoins across 25 chains`);
+  console.log(`  (up to 27 with optional non-EVM wallets).`);
   console.log(`  Pre-transaction trust profile + post-transaction SAR receipt`);
   console.log(`  gives both sides of the picture.\n`);
 

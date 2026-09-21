@@ -1,6 +1,6 @@
 # InsumerAPI Examples
 
-Condition-based access infrastructure for 38 blockchains. Send a wallet and conditions, get a signed boolean. No secrets, no identity, no static credentials.
+Condition-based access infrastructure for 37 blockchains. Send a wallet and conditions, get a signed boolean. No secrets, no identity, no static credentials.
 
 ## Try It (no key needed)
 
@@ -38,7 +38,6 @@ curl -s -X POST https://api.insumermodel.com/v1/attest \
         "contractAddress": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         "chainId": 1,
         "threshold": "100",
-        "decimals": 6,
         "label": "USDC >= 100 on Ethereum"
       }
     ]
@@ -90,7 +89,7 @@ Response — signed boolean, no balances exposed:
 }
 ```
 
-Verify the signature offline via JWKS: `https://api.insumermodel.com/v1/jwks`. Three `kid` labels are published — `insumer-attest-v1` (v1 attest and v1 trust), `insumer-attest-v2` (v2 attest), `insumer-trust-v2` (v2 trust) — all resolving to the same P-256 key.
+Verify the signature offline via JWKS: `https://api.insumermodel.com/v1/jwks`. The JWKS has five entries over two keys. Three ECDSA P-256 `kid` labels resolve to the same P-256 key: `insumer-attest-v1` (v1 attest and v1 trust), `insumer-attest-v2` (v2 attest), `insumer-trust-v2` (v2 trust). Two ML-DSA-65 post-quantum `kid` labels resolve to the same ML-DSA-65 key: `insumer-attest-pq1` and `insumer-trust-pq1`.
 
 Note on key versions: every newly created key is **v2** — thresholds go in as decimal **strings** (`"100"`, not `100`; a JSON number is rejected with 400) and come back as canonical decimal strings, with no `decimals` field in the response. Older v1 keys keep the numeric format and the `insumer-attest-v1` kid.
 
@@ -105,7 +104,7 @@ Note on key versions: every newly created key is **v2** — thresholds go in as 
 Nine condition types, mixable in a single call:
 
 - **Token balances** (`token_balance`): Does this wallet hold at least X of token Y on chain Z?
-- **NFT ownership** (`nft_ownership`): Does this wallet own an NFT from collection Y? 34 chains, including XRPL NFTs with taxon filters
+- **NFT ownership** (`nft_ownership`): Does this wallet own an NFT from collection Y? 33 chains (31 EVM, Solana and XRPL), including XRPL NFTs with taxon filters
 - **EAS attestations** (`eas_attestation`): Does this wallet hold an on-chain attestation matching a schema and attester? Pre-configured compliance templates via `GET /v1/compliance/templates`
 - **Farcaster identity** (`farcaster_id`): Is this wallet a registered Farcaster identity?
 - **Arbitrary view calls** (`evm_view_call`): Does `anyViewFunction(address)` on your contract return `true` for this wallet?
@@ -116,9 +115,9 @@ Nine condition types, mixable in a single call:
 
 Plus:
 
-- **Multiple conditions**: Up to 10 conditions per call, across any mix of 38 chains
-- **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, XDC, Solana, XRPL, Bitcoin, Tron, Stellar, Sui, and 24 more EVM chains
-- **Merkle storage proofs**: `proof: "merkle"` adds EIP-1186 storage proofs for trustless verification against block headers — token balance slots on 28 of 32 EVM chains, and delegation revocation slots (2 credits instead of 1)
+- **Multiple conditions**: Up to 10 conditions per call, across any mix of 37 chains
+- **Cross-chain**: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, XDC, Solana, XRPL, Bitcoin, Tron, Stellar, Sui, and 23 more EVM chains
+- **Merkle storage proofs**: `proof: "merkle"` adds EIP-1186 storage proofs for trustless verification against block headers: token balance slots on 27 of 31 EVM chains (not available on ZKsync Era, Sei, Viction or XDC Network, nor on any non-EVM chain), and delegation revocation slots (2 credits instead of 1)
 - **Fact profiles**: up to 49 checks across 27 chains in 9 dimensions (`POST /v1/trust`) — no score, no opinion, just cryptographically verifiable evidence organized by dimension. Batch up to 10 wallets in one call via `POST /v1/trust/batch`
 
 Every response is signed with ECDSA P-256. Pass the wallet auth result to downstream systems as cryptographic proof without re-querying the chain.
@@ -171,7 +170,7 @@ curl -s -X POST https://api.insumermodel.com/v1/attest \
 
 EVM Solidity contracts that consume InsumerAPI's off-chain signed attestations on-chain. The off-chain primitive issues a signed verdict over a wallet's condition set; these contracts verify the signature against the published JWKS via the RIP-7212 `P256VERIFY` precompile (`0x0100`), then expose a verifiable result to a consumer surface. Same family across three ERC consumer specs — one primitive, three consumer interfaces.
 
-Live on chains where RIP-7212 is available: Base, Optimism, Arbitrum, Polygon, Scroll, ZKsync, Celo. Issuer JWKS: `https://api.insumermodel.com/.well-known/jwks.json` (P-256 / ES256; the three published `kid`s resolve to the same key, so the contracts verify against one set of coordinates regardless of signing scheme).
+Live on chains where RIP-7212 is available: Base, Optimism, Arbitrum, Polygon, Scroll, ZKsync, Celo. Issuer JWKS: `https://api.insumermodel.com/.well-known/jwks.json` (P-256 / ES256; the three ES256 `kid`s resolve to the same key, so the contracts verify against one set of coordinates regardless of signing scheme).
 
 | File | Spec | Role |
 |------|------|------|
@@ -228,9 +227,9 @@ if (res.status === 503 && result.error?.code === "rpc_failure") {
 }
 ```
 
-## Supported Chains (38)
+## Supported Chains (37)
 
-**EVM (32):** Ethereum (1), BNB Chain (56), Base (8453), Avalanche (43114), Polygon (137), Arbitrum (42161), Optimism (10), XDC (50), Chiliz (88888), Soneium (1868), Plume (98866), Sonic (146), Gnosis (100), Mantle (5000), Scroll (534352), Linea (59144), zkSync Era (324), Blast (81457), Taiko (167000), Ronin (2020), Celo (42220), Moonbeam (1284), Moonriver (1285), Viction (88), opBNB (204), World Chain (480), Unichain (130), Ink (57073), Sei (1329), Berachain (80094), ApeChain (33139), Robinhood Chain (4663)
+**EVM (31):** Ethereum (1), BNB Chain (56), Base (8453), Avalanche (43114), Polygon (137), Arbitrum (42161), Optimism (10), XDC (50), Chiliz (88888), Soneium (1868), Plume (98866), Sonic (146), Gnosis (100), Mantle (5000), Scroll (534352), Linea (59144), zkSync Era (324), Blast (81457), Taiko (167000), Ronin (2020), Celo (42220), Viction (88), opBNB (204), World Chain (480), Unichain (130), Ink (57073), Sei (1329), Berachain (80094), ApeChain (33139), Robinhood Chain (4663), Arc (5042)
 
 **Non-EVM (6):** Solana (`chainId: "solana"`), XRPL (`chainId: "xrpl"` — native XRP, trust line tokens, NFTs), Bitcoin (`bitcoinWallet` — native BTC, P2PKH/P2SH/bech32/Taproot), Tron (`chainId: "tron"` — native TRX, TRC-20 incl. USDT-TRC20), Stellar (`chainId: "stellar"` — native XLM, classic trustlines incl. USDC and BENJI), Sui (`chainId: "sui"` — native SUI, Sui-native tokens incl. USDC)
 
@@ -308,7 +307,7 @@ Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Would Yo
 
 ## Agent-to-Agent Sessions (AgentTalk)
 
-A SCIF for AI agents. Every agent in the room verifies the same on-chain conditions before information moves — like verifying clearance before entering a secure facility. Bilateral sessions, working groups, or town halls. No artificial cap on participants. Up to 10 composable conditions per channel across any mix of 38 chains.
+A SCIF for AI agents. Every agent in the room verifies the same on-chain conditions before information moves, like verifying clearance before entering a secure facility. Bilateral sessions, working groups, or town halls. No artificial cap on participants. Up to 10 composable conditions per channel across any mix of 37 chains.
 
 ```json
 {
@@ -325,7 +324,7 @@ A SCIF for AI agents. Every agent in the room verifies the same on-chain conditi
 }
 ```
 
-Six conditions, three chains, every agent in the room, all must pass. But this is one configuration — not the ceiling. One condition on one chain, or ten spanning all 38. Two agents or two hundred. The strength of the lock and the size of the room are at the creator's discretion.
+Six conditions, three chains, every agent in the room, all must pass. But this is only one configuration. One condition on one chain, or ten spanning all 37. Two agents or two hundred. The strength of the lock and the size of the room are at the creator's discretion.
 
 Dynamic enforcement — lose a credential, get ejected on re-verify. Creator can kick. Agents can leave.
 

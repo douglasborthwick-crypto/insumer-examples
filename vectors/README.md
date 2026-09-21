@@ -253,22 +253,25 @@ evaluated, that the result is bound to a named point in chain history, and that 
 part of it is detectable offline against a public key.
 
 They do not re-run the chain read. That is the verifying party's own work, and it should be:
-every vector carries the anchor and the evaluated predicate, which are the two inputs needed
-to repeat the underlying state read against any node and compare. That read goes against
-public chain state rather than against anything the issuer holds, which is what makes these
-signals recomputable rather than merely signed.
+every EVM vector carries the anchored block and the evaluated predicate, which are the two
+inputs needed to repeat the underlying state read against any node and compare. That read goes
+against public chain state rather than against anything the issuer holds, which is what makes
+these signals recomputable rather than merely signed. This applies to the EVM vectors, whose
+anchor names the state that was read. Vector 07 is a different kind: its Bitcoin anchor is a
+tip marker (see "Anchors differ by chain" below).
 
-Every verdict in this set was re-derived from chain state before publication, read at the
-anchored block rather than at the chain tip. For vector 07 the anchor's block hash was also
-checked against the block at that height. That re-derivation is an issuer statement about how
+Every verdict in this set was re-derived from chain state before publication. The EVM verdicts
+were read at the anchored block rather than at the chain tip. For vector 07 the anchor's block
+hash was also checked against the block at that height. That re-derivation is an issuer statement about how
 these were produced rather than something this corpus lets you check; what the corpus does let
 you check is the signature, the condition hash and the anchor, and it carries the two inputs
 needed to repeat the state read yourself.
 
 Two things follow that a checker should expect. Balances at these addresses change after the
 anchor, so a reading taken today will not match the anchored block. And repeating the reads
-behind vectors 01 to 06 now needs archive access, because those blocks have passed out of the
-state-retention window an ordinary EVM endpoint serves; vector 07 is unaffected, since Bitcoin
+behind the EVM vectors now needs archive access, because those blocks have passed out of the
+state-retention window an ordinary EVM endpoint serves. Vector 07 has no read at an anchored
+block to repeat: its anchor marks the Bitcoin tip seen when the balance was read, and Bitcoin
 history stays available from any full node. Neither affects a vector: verifying one is a
 signature check, a hash recomputation and a timestamp comparison, none of which touch the chain.
 
@@ -277,8 +280,19 @@ signature check, a hash recomputation and a timestamp comparison, none of which 
 Vectors 01 to 06 anchor on `blockNumber` with `blockTimestamp`. Vector 07 anchors on
 `blockHeight` with `blockHash`, and its `chainId` is the string `"bitcoin"` rather than a
 number. A verifier that assumes `blockNumber` finds no anchor on vector 07. The other
-families follow the same pattern: `slot` on Solana, `ledgerIndex` with `ledgerHash` on XRPL
-and Stellar, `checkpointSequence` on Sui. The six marker checks on vectors 18 and 21 carry no
+families carry their own fields: `slot` on Solana, `ledgerIndex` with `ledgerHash` on XRPL
+and on Stellar, `blockHeight` on Tron, `checkpointSequence` on Sui.
+
+The anchors are of three kinds, and a verifier should read each for what it is:
+
+- **Names the state read.** The EVM `blockNumber` and the XRPL `ledgerIndex`. The condition
+  was evaluated at that block or ledger, so the read can be repeated there.
+- **A floor.** The Solana `slot`. The state read is at least as recent as that slot.
+- **A tip marker.** The Bitcoin and Tron `blockHeight`, the Stellar `ledgerIndex` and the Sui
+  `checkpointSequence`. Each records the chain tip seen when the balance was read. It places
+  the result in time and does not name the state that was read.
+
+The six marker checks on vectors 18 and 21 carry no
 anchor at all, because no chain was read for them; a freshness check skips them.
 
 Every vector except 13 and 19 is signed under the v2 scheme, though for different reasons in the
