@@ -6,9 +6,12 @@ Demonstrates:
 2. Verifying token holdings (POST /v1/attest)
 3. Checking NFT ownership
 4. Multi-condition verification across chains
-5. Listing merchants and checking discounts
+5. Listing merchants and checking remaining credits
 6. XRPL native XRP verification
 7. XRPL trust line token (RLUSD) verification
+
+check_discount() shows the GET /v1/discount/check call for a given merchant ID;
+main() does not run it, because it needs a merchant you have set up.
 
 Usage:
     pip install httpx

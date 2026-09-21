@@ -9,30 +9,28 @@
  *
  * Usage:
  *   DEMO_PRIVATE_KEY=0x... node x402-pay-trust.js
+ *   X402_NETWORK=eip155:5042 DEMO_PRIVATE_KEY=0x... node x402-pay-trust.js   # pay on Arc
  *
- * Needs $0.30 USDC on Base (the default network) for both calls; if the balance only covers the
- * first, the second is skipped with a clear message rather than a cryptic
- * facilitator decline.
+ * Pays on the network X402_NETWORK names (Base by default; eip155:137 Polygon,
+ * eip155:42161 Arbitrum, eip155:5042 Arc), exactly as x402-pay-per-call.js does,
+ * and reads the payer's USDC balance on that same network. Needs $0.30 USDC
+ * there for both calls; if the balance only covers the first, the second is
+ * skipped with a clear message rather than a cryptic facilitator decline.
  */
 
 const { privateKeyToAccount } = require("viem/accounts");
-const { payPerCall } = require("./x402-pay-per-call.js");
-const { createPublicClient, http } = require("viem");
-const { base } = require("viem/chains");
+const { payPerCall, usdcBalance } = require("./x402-pay-per-call.js");
 
-const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+// USDC per EVM settlement network, as the API's 402 quote lists it (`asset`).
+const NETWORKS = {
+  "eip155:8453": { label: "Base", usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" },
+  "eip155:137": { label: "Polygon", usdc: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" },
+  "eip155:42161": { label: "Arbitrum", usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" },
+  "eip155:5042": { label: "Arc", usdc: "0x3600000000000000000000000000000000000000" },
+};
+const NETWORK = process.env.X402_NETWORK || "eip155:8453";
 // A wallet with visible on-chain life, so the profile has something to say.
 const SUBJECT = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
-
-async function usdcBalance(payer) {
-  const pub = createPublicClient({ chain: base, transport: http("https://mainnet.base.org") });
-  return pub.readContract({
-    address: USDC,
-    abi: [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] }],
-    functionName: "balanceOf",
-    args: [payer],
-  });
-}
 
 function report(label, result) {
   if (result.status === 200 && result.body.ok) {
@@ -52,9 +50,14 @@ async function main() {
     console.log("Set DEMO_PRIVATE_KEY — these calls cost real USDC ($0.15 each).");
     process.exit(1);
   }
+  const net = NETWORKS[NETWORK];
+  if (!net) {
+    console.log(`X402_NETWORK=${NETWORK} is not one of the EVM networks this example pays on: ${Object.keys(NETWORKS).join(", ")}`);
+    process.exit(1);
+  }
   const payer = privateKeyToAccount(key).address;
-  const startBal = await usdcBalance(payer);
-  console.log(`Payer: ${payer}`);
+  const startBal = await usdcBalance(NETWORK, net.usdc, payer);
+  console.log(`Payer: ${payer} (paying on ${net.label}, ${NETWORK})`);
   console.log(`USDC balance: ${(Number(startBal) / 1e6).toFixed(6)}\n`);
 
   // ── 1. POST /v1/trust — $0.15 ──
@@ -63,17 +66,17 @@ async function main() {
   report("trust", trust);
 
   // ── 2. POST /v1/trust/batch — $0.15 for one wallet ──
-  const midBal = await usdcBalance(payer);
+  const midBal = await usdcBalance(NETWORK, net.usdc, payer);
   if (midBal < 150000n) {
     console.log(`\nSkipping /v1/trust/batch: balance ${(Number(midBal) / 1e6).toFixed(6)} is below $0.15.`);
-    console.log(`Top up USDC on Base (the network this example pays on) to ${payer} and re-run — the trust settlement above still counts.`);
+    console.log(`Top up USDC on ${net.label} (the network this example pays on) to ${payer} and re-run — the trust settlement above still counts.`);
     return;
   }
   console.log("\nPOST /v1/trust/batch ($0.15, one wallet)…");
   const batch = await payPerCall("/v1/trust/batch", { wallets: [{ wallet: SUBJECT }] }, key);
   report("trust/batch", batch);
 
-  const endBal = await usdcBalance(payer);
+  const endBal = await usdcBalance(NETWORK, net.usdc, payer);
   console.log(`\nRemaining USDC: ${(Number(endBal) / 1e6).toFixed(6)}`);
   console.log("Bazaar crawler watch: both endpoints already pass CDP validate; a settled");
   console.log("call per endpoint is the registration signal. Listing typically follows within the hour.");

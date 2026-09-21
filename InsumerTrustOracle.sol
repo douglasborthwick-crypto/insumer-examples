@@ -15,9 +15,10 @@ pragma solidity ^0.8.20;
  *
  * Score derivation (off-chain, by relayer):
  *   The trust profile returns summary.totalPassed and summary.totalChecks
- *   (currently 36 base checks across 4 dimensions: stablecoins, governance, NFTs, staking).
+ *   (currently 45 base checks across 5 dimensions: stablecoins, governance, NFTs, staking,
+ *   institutional stablecoins).
  *   Score = round(totalPassed / totalChecks * 100).
- *   Example: 15/36 passed = score 42. Empty wallet = score 0.
+ *   Example: 19/45 passed = score 42. Empty wallet = score 0.
  *
  * Freshness:
  *   Scores expire after 30 minutes (matching the API's expiresAt TTL).
@@ -109,9 +110,11 @@ contract InsumerTrustOracle is ITrustOracle {
     // State
     // ─────────────────────────────────────────────
 
-    /// @dev InsumerAPI P-256 public key coordinates (from JWKS; all published kids
-    ///      share these coordinates - trust profiles on keys minted today carry
-    ///      kid "insumer-trust-v2", pre-cutover keys "insumer-attest-v1").
+    /// @dev InsumerAPI P-256 public key coordinates (from JWKS; the three EC kids
+    ///      share these coordinates - the JWKS also carries post-quantum ML-DSA-65
+    ///      entries under other kids, which this contract does not use. Trust
+    ///      profiles on keys minted today carry kid "insumer-trust-v2",
+    ///      pre-cutover keys "insumer-attest-v1").
     ///      If both are 0, signature verification is skipped.
     uint256 public immutable pubKeyX;
     uint256 public immutable pubKeyY;

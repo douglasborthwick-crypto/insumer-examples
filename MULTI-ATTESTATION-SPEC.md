@@ -147,7 +147,7 @@ Privacy-preserving on-chain verification. Returns signed booleans. No balances e
 
 **Endpoint routing by wallet format:**
 
-- **EVM wallets** → `POST /v1/trust` — curated multi-chain trust profile. Returns an ECDSA-signed fact profile across stablecoins, governance tokens, NFTs, and staking positions. An EVM wallet is the mandatory anchor for this endpoint.
+- **EVM wallets** → `POST /v1/trust` — curated multi-chain trust profile. Returns an ECDSA-signed fact profile across stablecoins, governance tokens, NFTs, staking positions, and institutional stablecoins. An EVM wallet is the mandatory anchor for this endpoint.
 - **Non-EVM wallets (Solana, XRPL, Bitcoin, Tron, Stellar, Sui)** → `POST /v1/attest` with `format: "jwt"` and chain-appropriate conditions. The wallet lands in the signed JWT `sub` claim, making the binding cryptographic even for non-EVM formats.
 
 | Property | Value |
@@ -184,7 +184,7 @@ Docs: [insumermodel.com/developers](https://insumermodel.com/developers/)
 | `results[].met` | boolean | Whether this individual condition was satisfied. |
 | `results[].evaluatedCondition` | object | The evaluated condition parameters (type, chainId, contractAddress, operator, threshold, etc.). |
 | `results[].conditionHash` | string | `0x`-prefixed SHA-256 hash of the canonical (sorted-key) evaluated condition JSON. |
-| `results[].blockNumber` | number | Block number at evaluation time (when available). |
+| `results[].blockNumber` | string | `0x`-prefixed hex block number at evaluation time (EVM chains, when available). |
 | `results[].blockTimestamp` | string | Block timestamp (when available). |
 | `attestedAt` | string | ISO 8601 timestamp of attestation creation. |
 

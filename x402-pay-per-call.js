@@ -101,11 +101,12 @@ const EIP3009_TYPES = {
 };
 
 /**
- * Pick the quote variant matching this request. buildAccepts quotes standard
- * first and proof:"merkle" second; amounts differ, so sort by amount and take
- * the cheap one unless the body asks for a Merkle proof.
+ * Pick the settlement network to pay on. The quote lists one accept per
+ * network, all at the price of THIS body (a proof:"merkle" body is quoted at
+ * double), so the choice is by network, never by position or amount: the
+ * entry X402_NETWORK names (CAIP-2), or the first EVM entry (Base).
  * @param {object[]} accepts - the 402 quote's accepts array
- * @param {object} body - the request body being paid for
+ * @param {object} body - the request body being paid for (unused; the quote is already priced for it)
  * @returns {object} the chosen PaymentRequirements
  */
 function chooseRequirement(accepts, body) {
@@ -266,4 +267,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { payPerCall, chooseRequirement, EIP3009_TYPES };
+module.exports = { payPerCall, chooseRequirement, usdcBalance, EIP3009_TYPES };

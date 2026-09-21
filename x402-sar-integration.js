@@ -21,8 +21,8 @@
  *     -d '{"email":"you@example.com","appName":"SAR Integration","tier":"free"}'
  */
 
-const { verify } = require("insumer-verify");
-const { createRemoteJWKSet, jwtVerify } = require("jose");
+// insumer-verify and jose are ES modules, so this CommonJS file loads them
+// with dynamic import() inside main().
 
 const API = "https://api.insumermodel.com";
 const KEY = process.env.INSUMER_API_KEY;
@@ -48,6 +48,9 @@ const CONDITIONS = [
 ];
 
 async function main() {
+  const { verifyAttestation } = await import("insumer-verify");
+  const { createRemoteJWKSet, jwtVerify } = await import("jose");
+
   console.log(`Agent: ${AGENT_ID}\n`);
 
   // ─── Step 1: Pre-transaction attestation (InsumerAPI) ───
@@ -128,10 +131,15 @@ async function main() {
   // 4a. Verify InsumerAPI attestation (ECDSA P-256 via insumer-verify)
   console.log("  4a. Verifying InsumerAPI attestation...");
   try {
-    const attestVerify = await verify(attestResult.data);
+    // Pass the whole response as issued: { ok, data: { attestation, sig, kid, pqSig, pqKid, jwt, pqJwt } }.
+    // Because it carries data.jwt, insumer-verify also checks the tokens and binds them to the attestation.
+    const attestVerify = await verifyAttestation(attestResult);
     console.log(`      Valid: ${attestVerify.valid}`);
-    if (!attestVerify.valid) {
-      console.log(`      Reason: ${attestVerify.reason}`);
+    for (const [name, check] of Object.entries(attestVerify.checks)) {
+      if (!check) continue;
+      const status = check.status ? ` (${check.status})` : "";
+      const reason = check.reason ? ` - ${check.reason}` : "";
+      console.log(`      ${name}: ${check.passed ? "passed" : "FAILED"}${status}${reason}`);
     }
   } catch (err) {
     console.log(`      Error: ${err.message}`);

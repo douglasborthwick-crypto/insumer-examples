@@ -4,8 +4,9 @@
  * A lightweight Express server that:
  * 1. Verifies on-chain token holdings via POST /v1/attest
  * 2. Checks merchant discounts via GET /v1/discount/check
- * 3. Returns the signed attestation (sig + kid, plus the pqSig/pqKid companion)
- *    so the caller can verify it offline with insumer-verify
+ * 3. Returns the signed attestation response exactly as issued, under `signed`
+ *    ({ ok, data: { attestation, sig, kid, pqSig, pqKid } }), so the caller can
+ *    verify it offline: `await verifyAttestation(body.signed)` with insumer-verify
  *
  * Usage:
  *   INSUMER_API_KEY=insr_live_... node verify.js
@@ -28,6 +29,15 @@ if (!KEY) {
 }
 
 const headers = { "Content-Type": "application/json", "X-API-Key": KEY };
+
+// The attestation response exactly as the API issued it: the attestation object,
+// its ECDSA signature and kid, and the post-quantum companion (pqSig, pqKid).
+// Pass it unchanged to insumer-verify's verifyAttestation(); do not rebuild or
+// re-order the attestation, because the v1 scheme signs bare JSON.stringify output.
+function signedResponse(result) {
+  const { attestation, sig, kid, pqSig, pqKid } = result.data;
+  return { ok: true, data: { attestation, sig, kid, pqSig, pqKid } };
+}
 
 // --- 1. Verify token holdings ---
 // POST /verify { wallet, conditions? }
@@ -78,7 +88,7 @@ app.post("/verify", async (req, res) => {
     wallet,
     pass: result.data.attestation.pass,
     results: result.data.attestation.results,
-    signature: result.data.sig,
+    signed: signedResponse(result),
   });
 });
 
@@ -148,7 +158,7 @@ app.post("/multi-verify", async (req, res) => {
     return res.status(attestRes.status).json(result);
   }
 
-  const { attestation, sig } = result.data;
+  const { attestation } = result.data;
 
   res.json({
     wallet,
@@ -157,7 +167,7 @@ app.post("/multi-verify", async (req, res) => {
       label: r.label,
       met: r.met,
     })),
-    signature: sig,
+    signed: signedResponse(result),
   });
 });
 
@@ -201,7 +211,7 @@ app.post("/verify-xrpl", async (req, res) => {
     xrplWallet,
     pass: result.data.attestation.pass,
     results: result.data.attestation.results,
-    signature: result.data.sig,
+    signed: signedResponse(result),
   });
 });
 

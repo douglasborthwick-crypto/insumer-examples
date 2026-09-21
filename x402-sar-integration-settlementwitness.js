@@ -17,7 +17,10 @@ const { createRemoteJWKSet, jwtVerify } = require("jose");
 
 
 const ed = require("@noble/ed25519");
-const canonicalize = require("canonicalize");
+// canonicalize 2.x and later is an ES module. Under Node 22, require() returns its
+// namespace, and the function is its default export; 1.x returns the function itself.
+const canonicalizeModule = require("canonicalize");
+const canonicalize = canonicalizeModule.default || canonicalizeModule;
 const crypto = require("crypto");
 
 ed.hashes.sha512 = (m) => crypto.createHash("sha512").update(m).digest();

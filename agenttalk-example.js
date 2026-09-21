@@ -39,8 +39,11 @@
  * Usage:
  *   node agenttalk-example.js                                    # bilateral (2 agents)
  *   node agenttalk-example.js multiparty                         # multi-party (3 agents)
- *   AGENTTALK_API_KEY=insr_live_... node agenttalk-example.js    # use your own key
  *   DEMO_PRIVATE_KEY=0x... node agenttalk-example.js             # gate on a real wallet
+ *
+ * No API key: the service authenticates each action by the wallet signature over
+ * its one-time challenge, and bills declare calls to the declaring wallet (a free
+ * allowance, then credits bought with USDC via POST /api/agenttalk/buy-key).
  */
 
 const https = require("https");
@@ -122,18 +125,27 @@ async function proveControl(account, action) {
   return account.signMessage({ message: res.data.message });
 }
 
-// Interpret a declare/join response under Design A. Returns the data on success
-// (HTTP 200), or null after explaining the outcome. A 403 with pass:false means
-// the signature was accepted (control proven) but the wallet doesn't satisfy the
-// condition — expected for a fresh throwaway wallet, not an error.
+// Interpret a declare/join response. Returns the data on success (HTTP 200), or
+// null after explaining the outcome.
+//
+// A 403 with pass:false means the signature was accepted (control proven) but the
+// wallet was not admitted: either a condition is not met, or no verdict could be
+// produced for it at that moment. The body does not say which, so treat it as
+// "not admitted" — expected for a fresh throwaway wallet — and retry later if you
+// expect the wallet to qualify. A 503 is handled the same way: retry later.
 function handleGate(label, res) {
   if (res.status === 200 && (res.data.channelId || res.data.sessionId)) return res.data;
   if (res.status === 403 && res.data && res.data.pass === false) {
     console.log(`\n   Proof-of-control accepted — the signature passed server verification.`);
-    console.log(`   Condition not met: this wallet holds none of the required tokens, so`);
-    console.log(`   ${label} did not open a session. (Expected for a fresh throwaway wallet.)`);
+    console.log(`   Not admitted: ${label} did not open a session. Either the wallet does not`);
+    console.log(`   meet the condition (expected for a fresh throwaway wallet), or no verdict`);
+    console.log(`   could be produced just now. If this wallet should qualify, retry later.`);
     console.log(`   Set DEMO_PRIVATE_KEY to a funded wallet that satisfies the condition to`);
     console.log(`   complete the full flow.`);
+    return null;
+  }
+  if (res.status === 503) {
+    console.log(`\n   Service temporarily unavailable (503): ${label} was not decided. Retry later.`);
     return null;
   }
   console.log(`   FAILED (${res.status}):`, JSON.stringify(res.data));
@@ -162,15 +174,12 @@ async function bilateral() {
   const agentA = makeAccount("DEMO_PRIVATE_KEY_A");
   const agentB = makeAccount("DEMO_PRIVATE_KEY_B");
 
-  const apiKey = process.env.AGENTTALK_API_KEY;
-
   // --- Step 1: Prove control + declare channel ---
   console.log("1. Agent A proves control and declares a bilateral channel...");
   console.log(`   Wallet: ${agentA.address}`);
   console.log(`   Condition: Hold >= 1 USDC on Ethereum\n`);
 
   const headers = { "Content-Type": "application/json" };
-  if (apiKey) headers["x-api-key"] = apiKey;
 
   const declareSig = await proveControl(agentA, "declare");
   const declareRes = await request(`${BASE_URL}/declare`, {
@@ -250,15 +259,12 @@ async function multiparty() {
   const agentB = makeAccount("DEMO_PRIVATE_KEY_B");
   const agentC = makeAccount("DEMO_PRIVATE_KEY_C");
 
-  const apiKey = process.env.AGENTTALK_API_KEY;
-
   // --- Step 1: Prove control + declare with capacity + autoStart ---
   console.log("1. Creator proves control and declares a multi-party channel (capacity: 5, autoStart: true)...");
   console.log(`   Wallet: ${creator.address}`);
   console.log(`   Condition: Hold >= 1 USDC on Ethereum\n`);
 
   const headers = { "Content-Type": "application/json" };
-  if (apiKey) headers["x-api-key"] = apiKey;
 
   const declareSig = await proveControl(creator, "declare");
   const declareRes = await request(`${BASE_URL}/declare`, {
