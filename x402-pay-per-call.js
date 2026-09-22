@@ -177,11 +177,22 @@ async function payPerCall(path, body, privateKey) {
     accepted: req,
     payload: { signature, authorization },
   };
-  const paidRes = await fetch(url, {
+  // A 503 here is never a refusal. On Arc it can mean the settlement was
+  // submitted but not yet confirmed: the payment is UNRESOLVED and may still
+  // land. Retry the exact same request with the SAME header — it resolves to
+  // the same payment and cannot charge twice. Never sign a new authorization
+  // for it. If the payment ultimately failed, the retry returns 402.
+  const paymentHeader = Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
+  const submit = () => fetch(url, {
     method: "POST",
-    headers: { ...json, "PAYMENT-SIGNATURE": Buffer.from(JSON.stringify(paymentPayload)).toString("base64") },
+    headers: { ...json, "PAYMENT-SIGNATURE": paymentHeader },
     body: JSON.stringify(body),
   });
+  let paidRes = await submit();
+  for (let attempt = 1; paidRes.status === 503 && attempt <= 3; attempt++) {
+    await new Promise((r) => setTimeout(r, 5000 * attempt));
+    paidRes = await submit();
+  }
 
   // Step 4: on success the settlement receipt rides in PAYMENT-RESPONSE
   // (and, for older clients, X-PAYMENT-RESPONSE — identical contents).
