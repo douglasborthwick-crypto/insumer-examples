@@ -35,10 +35,10 @@ contract InsumerKeeperHookTest is Test {
     InsumerKeeperHook crafted;
 
     function setUp() public {
-        live = new InsumerKeeperHook(PUB_KEY_X, PUB_KEY_Y);
+        live = new InsumerKeeperHook(PUB_KEY_X, PUB_KEY_Y, address(0));
         live.setConditionHash(SUB_ID, LIVE_CONDITION_HASH);
         (uint256 x, uint256 y) = vm.publicKeyP256(TEST_PK);
-        crafted = new InsumerKeeperHook(x, y);
+        crafted = new InsumerKeeperHook(x, y, address(0));
         crafted.setConditionHash(SUB_ID, COND_HASH);
         vm.warp(LIVE_IAT + 60);
     }
@@ -118,6 +118,18 @@ contract InsumerKeeperHookTest is Test {
 
     function test_CraftedPassingTokenPasses() public {
         crafted.beforeKeep(SUB_ID, 1, 1e6, MERCHANT, _token(_payload(MERCHANT_HEX, "true", COND, LIVE_EXP)));
+    }
+
+    function test_PinnedCallerOnly() public {
+        address manager = address(0x8191);
+        InsumerKeeperHook pinned = new InsumerKeeperHook(PUB_KEY_X, PUB_KEY_Y, manager);
+        pinned.setConditionHash(SUB_ID, LIVE_CONDITION_HASH);
+        vm.expectRevert(InsumerKeeperHook.NotKeeperCaller.selector);
+        pinned.beforeKeep(SUB_ID, 1, 1e6, LIVE_WALLET, bytes(LIVE_JWT));
+        vm.prank(manager);
+        pinned.beforeKeep(SUB_ID, 1, 1e6, LIVE_WALLET, bytes(LIVE_JWT));
+        vm.expectRevert(InsumerKeeperHook.NotKeeperCaller.selector);
+        pinned.afterKeep(SUB_ID, 1, 1e6, LIVE_WALLET, "");
     }
 
     function test_OnlySubscriberConfigures() public {

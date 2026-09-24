@@ -24,7 +24,8 @@ import "./InsumerAttestationToken.sol";
  *   wallet or condition the issuer did not sign. The token is a signed public
  *   statement, not a secret: anyone holding it can present it until it
  *   expires (30 minutes after issuance, 5 when the request includes an
- *   erc7710_delegation condition).
+ *   erc7710_delegation condition). Pin the subscription contract as
+ *   keeperCaller at deployment so only it can run the hooks.
  *
  * Configuring a subscription:
  *   setConditionHash stores the 32-byte SHA-256 conditionHash InsumerAPI
@@ -84,6 +85,7 @@ contract InsumerKeeperHook is IKeeperHook {
     error ConditionMismatch();           // conditionHash doesn't match expected
     error AttestationExpired();          // exp is not later than now
     error NotSubscriber();               // caller not authorized
+    error NotKeeperCaller();             // hook called by other than the pinned caller
 
     // ─────────────────────────────────────────────
     // State
@@ -94,6 +96,11 @@ contract InsumerKeeperHook is IKeeperHook {
     ///      EC kids share one key). Decode JWK "x" and "y" (base64url) to uint256.
     uint256 public immutable pubKeyX;
     uint256 public immutable pubKeyY;
+
+    /// @dev The contract allowed to call beforeKeep/afterKeep (the ERC-8191
+    ///      subscription contract). Zero means any caller, which lets anyone
+    ///      emit AttestationVerified for a valid token.
+    address public immutable keeperCaller;
 
     /// @dev Subscriber who deployed this hook -- controls condition configuration.
     ///      Per companion spec Q3: subscriber sets the hook, not the merchant.
@@ -114,11 +121,14 @@ contract InsumerKeeperHook is IKeeperHook {
     // Constructor
     // ─────────────────────────────────────────────
 
-    /// @param _pubKeyX X coordinate of InsumerAPI P-256 public key (uint256)
-    /// @param _pubKeyY Y coordinate of InsumerAPI P-256 public key (uint256)
-    constructor(uint256 _pubKeyX, uint256 _pubKeyY) {
+    /// @param _pubKeyX      X coordinate of InsumerAPI P-256 public key (uint256)
+    /// @param _pubKeyY      Y coordinate of InsumerAPI P-256 public key (uint256)
+    /// @param _keeperCaller The subscription contract that calls the hooks, or
+    ///                      address(0) to accept any caller
+    constructor(uint256 _pubKeyX, uint256 _pubKeyY, address _keeperCaller) {
         pubKeyX = _pubKeyX;
         pubKeyY = _pubKeyY;
+        keeperCaller = _keeperCaller;
         subscriber = msg.sender;
     }
 
@@ -148,6 +158,7 @@ contract InsumerKeeperHook is IKeeperHook {
         address merchant,
         bytes calldata data
     ) external override {
+        if (keeperCaller != address(0) && msg.sender != keeperCaller) revert NotKeeperCaller();
         (bool ok, InsumerAttestationToken.Claims memory c) = InsumerAttestationToken.read(data, pubKeyX, pubKeyY);
         if (!ok) revert InvalidToken();
         if (!c.pass) revert AttestationFailed();
@@ -171,5 +182,7 @@ contract InsumerKeeperHook is IKeeperHook {
         uint256 /* amount */,
         address /* merchant */,
         bytes calldata /* data */
-    ) external override {}
+    ) external view override {
+        if (keeperCaller != address(0) && msg.sender != keeperCaller) revert NotKeeperCaller();
+    }
 }
