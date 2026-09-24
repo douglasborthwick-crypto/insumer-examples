@@ -1,49 +1,48 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "./InsumerAttestationToken.sol";
+
 /**
  * @title InsumerKeeperHook
  * @notice Reference IKeeperHook for ERC-8191 recurring payments.
- *         Verifies InsumerAPI ECDSA P-256 attestations before each collection cycle.
+ *         Verifies an InsumerAPI attestation token before each collection cycle.
  *
  * @dev Integration flow:
- *   1. Off-chain: keeper calls POST /v1/attest with the merchant's wallet and
- *      subscription-specific conditions (e.g., "holds governance token X").
- *   2. Keeper ABI-encodes the attestation fields + P-256 signature into `data`.
- *   3. beforeKeep() verifies the signature via RIP-7212, checks pass/wallet/freshness.
+ *   1. Off-chain: the keeper calls POST /v1/attest with "format": "jwt", the
+ *      merchant's wallet and the subscription's condition (e.g. "holds
+ *      governance token X").
+ *   2. The keeper passes the returned token, bytes(response.data.jwt), as `data`.
+ *   3. beforeKeep() verifies the token's signature through the P256VERIFY
+ *      precompile and reads the verdict, wallet, condition and expiry from the
+ *      signed payload itself (see InsumerAttestationToken).
  *   4. If any check fails, beforeKeep reverts and the collection is blocked.
  *
- * Signed payload (per the OpenAPI spec; the preimage depends on the response kid):
- *   kid "insumer-attest-v2" (keys minted today):
- *     "insumer.attestation.v2\n" + canonical JSON (recursive sorted keys) of
- *     { v: 2, id, pass, results, attestedAt }
- *   kid "insumer-attest-v1" (pre-cutover keys):
- *     JSON.stringify({ id, pass, results, attestedAt }) in original key order
- *   Either way: -> SHA-256 -> ECDSA P-256 sign -> base64 P1363 (64 bytes = r || s)
- *
- * Response shape:
- *   { attestation: { id, pass, results[], passCount, failCount, attestedAt, expiresAt },
- *     sig: "<base64 P1363>", kid: "insumer-attest-v2" }
- *
  * Trust model:
- *   The P-256 signature proves InsumerAPI produced the attestation. The extracted
- *   fields (pass, conditionHash) are relayed by the keeper alongside the signature.
- *   The signature itself covers the full JSON payload — not just these fields — so
- *   the binding between extracted fields and signature relies on honest relay.
- *   For tighter binding in production, have the keeper submit the raw signed payload
- *   bytes and SHA-256 hash them on-chain before verifying the signature (~2000 gas
- *   per payload byte).
+ *   The keeper supplies only the token, and every value beforeKeep checks is
+ *   read from its signed payload, so the keeper cannot relay a verdict,
+ *   wallet or condition the issuer did not sign. The token is a signed public
+ *   statement, not a secret: anyone holding it can present it until it
+ *   expires (30 minutes after issuance, 5 when the request includes an
+ *   erc7710_delegation condition).
+ *
+ * Configuring a subscription:
+ *   setConditionHash stores the 32-byte SHA-256 conditionHash InsumerAPI
+ *   returns for one condition, exactly as it returns it. Pin a condition on an
+ *   EVM chain (a non-EVM condition's token names a non-EVM wallet, which never
+ *   equals the merchant). A v1 key and a v2 key can hash the same condition
+ *   differently, so configure the hash your own key era returns.
  *
  * Post-quantum companion:
- *   Since 2026-09-01 every attest and trust response also carries an ML-DSA-65
- *   post-quantum companion (pqSig/pqKid on the raw response, pqJwt beside jwt),
- *   and the JWKS carries two RFC 9964 AKP entries for its key (kids
+ *   Every attest response also carries an ML-DSA-65 companion (pqSig/pqKid,
+ *   and pqJwt beside jwt), and the JWKS lists its key (kids
  *   insumer-attest-pq1/insumer-trust-pq1) after the three EC entries. This
  *   contract verifies the classical ES256 signature only and does not consume
  *   the companion.
  *
- * RIP-7212 P256VERIFY precompile availability:
- *   Base, Optimism, Arbitrum, Polygon, Scroll, ZKsync, Celo, and other L2s.
+ * P256VERIFY precompile (0x0100): RIP-7212 on L2s such as Base, Optimism,
+ *   Arbitrum, Polygon, Scroll, ZKsync, Celo; EIP-7951 on L1. Deploy only on a
+ *   chain that provides it.
  *
  * InsumerAPI public key:  https://insumermodel.com/.well-known/jwks.json
  * Verification library:   npm install insumer-verify
@@ -79,31 +78,20 @@ contract InsumerKeeperHook is IKeeperHook {
     // Errors
     // ─────────────────────────────────────────────
 
+    error InvalidToken();                // signature or payload did not verify
     error AttestationFailed();           // pass != true
-    error InvalidSignature();            // P-256 sig verification failed
-    error ConditionMismatch();           // conditionHash doesn't match expected
-    error AttestationTooOld();           // block delta exceeds freshness window
     error WalletMismatch();              // attested wallet != merchant
+    error ConditionMismatch();           // conditionHash doesn't match expected
+    error AttestationExpired();          // exp is not later than now
     error NotSubscriber();               // caller not authorized
-
-    // ─────────────────────────────────────────────
-    // Constants
-    // ─────────────────────────────────────────────
-
-    /// @dev RIP-7212 P256VERIFY precompile address
-    address constant P256_VERIFIER = address(0x0100);
-
-    /// @dev Max block age for a fresh attestation (~30 min on L2 at 2s blocks)
-    uint256 public constant MAX_BLOCK_AGE = 900;
 
     // ─────────────────────────────────────────────
     // State
     // ─────────────────────────────────────────────
 
     /// @dev InsumerAPI P-256 public key coordinates.
-    ///      Source: https://insumermodel.com/.well-known/jwks.json
-    ///      kid: "insumer-attest-v1", crv: P-256, alg: ES256
-    ///      Decode JWK "x" and "y" (base64url) to uint256.
+    ///      Source: https://insumermodel.com/.well-known/jwks.json (the three
+    ///      EC kids share one key). Decode JWK "x" and "y" (base64url) to uint256.
     uint256 public immutable pubKeyX;
     uint256 public immutable pubKeyY;
 
@@ -111,13 +99,8 @@ contract InsumerKeeperHook is IKeeperHook {
     ///      Per companion spec Q3: subscriber sets the hook, not the merchant.
     address public immutable subscriber;
 
-    /// @dev Expected conditionHash per subscription.
-    ///      Value: keccak256(abi.encodePacked(conditionHashHexString))
-    ///      where conditionHashHexString is results[0].conditionHash from the API
-    ///      (SHA-256 hex, "0x"-prefixed, e.g. "0x3a7f1b2c...").
-    ///
-    ///      For multi-condition attestations, use results[0].conditionHash or
-    ///      extend to store multiple hashes.
+    /// @dev Expected conditionHash per subscription: the 32-byte SHA-256
+    ///      conditionHash InsumerAPI returns for the condition.
     mapping(bytes32 => bytes32) public expectedConditionHash;
 
     // ─────────────────────────────────────────────
@@ -145,7 +128,7 @@ contract InsumerKeeperHook is IKeeperHook {
 
     /// @notice Set the expected conditionHash for a subscription.
     /// @param subId            ERC-8191 subscription ID (bytes32)
-    /// @param _conditionHash   keccak256(abi.encodePacked(insumerConditionHashHex))
+    /// @param _conditionHash   The condition's conditionHash as the API returns it
     function setConditionHash(bytes32 subId, bytes32 _conditionHash) external {
         if (msg.sender != subscriber) revert NotSubscriber();
         expectedConditionHash[subId] = _conditionHash;
@@ -156,53 +139,23 @@ contract InsumerKeeperHook is IKeeperHook {
     // IKeeperHook: beforeKeep
     // ─────────────────────────────────────────────
 
-    /// @notice Verify an InsumerAPI attestation before allowing collection.
-    /// @dev The keeper ABI-encodes the attestation into `data`:
-    ///
-    ///      (bool pass, address wallet, bytes32 conditionHash,
-    ///       uint256 blockNumber, bytes32 r, bytes32 s, bytes32 messageHash)
-    ///
-    ///      Mapping from API response:
-    ///        pass            <- attestation.pass
-    ///        wallet          <- the wallet that was attested (must equal merchant)
-    ///        conditionHash   <- keccak256(abi.encodePacked(attestation.results[0].conditionHash))
-    ///        blockNumber     <- uint256(attestation.results[0].blockNumber)  (hex to uint)
-    ///        r, s            <- decode sig from base64 P1363 (bytes 0-31 = r, bytes 32-63 = s)
-    ///        messageHash     <- SHA-256 of the signed payload (preimage per the
-    ///                           response kid; see the contract header note)
+    /// @notice Verify an InsumerAPI attestation token before allowing collection.
+    /// @param data  The compact JWT from POST /v1/attest ("format": "jwt"), as ASCII bytes.
     function beforeKeep(
         bytes32 subId,
-        uint256 /* cycle */,
+        uint256 cycle,
         uint256 /* amount */,
         address merchant,
         bytes calldata data
     ) external override {
-        (
-            bool pass,
-            address wallet,
-            bytes32 conditionHash,
-            uint256 blockNumber,
-            bytes32 r,
-            bytes32 s,
-            bytes32 messageHash
-        ) = abi.decode(data, (bool, address, bytes32, uint256, bytes32, bytes32, bytes32));
+        (bool ok, InsumerAttestationToken.Claims memory c) = InsumerAttestationToken.read(data, pubKeyX, pubKeyY);
+        if (!ok) revert InvalidToken();
+        if (!c.pass) revert AttestationFailed();
+        if (c.sub != merchant) revert WalletMismatch();
+        if (c.conditionHash != expectedConditionHash[subId]) revert ConditionMismatch();
+        if (c.exp <= block.timestamp) revert AttestationExpired();
 
-        // 1. Attestation must pass
-        if (!pass) revert AttestationFailed();
-
-        // 2. Attested wallet must be the merchant receiving payment
-        if (wallet != merchant) revert WalletMismatch();
-
-        // 3. Condition hash must match subscriber's configuration
-        if (conditionHash != expectedConditionHash[subId]) revert ConditionMismatch();
-
-        // 4. Attestation must be fresh
-        if (block.number - blockNumber > MAX_BLOCK_AGE) revert AttestationTooOld();
-
-        // 5. Verify ECDSA P-256 signature via RIP-7212
-        if (!_verifyP256(messageHash, r, s)) revert InvalidSignature();
-
-        emit AttestationVerified(subId, block.number, merchant);
+        emit AttestationVerified(subId, cycle, merchant);
     }
 
     // ─────────────────────────────────────────────
@@ -219,18 +172,4 @@ contract InsumerKeeperHook is IKeeperHook {
         address /* merchant */,
         bytes calldata /* data */
     ) external override {}
-
-    // ─────────────────────────────────────────────
-    // Internal: P-256 signature verification
-    // ─────────────────────────────────────────────
-
-    /// @dev Verify P-256 signature using RIP-7212 precompile.
-    ///      Input layout: messageHash || r || s || x || y (5 x 32 bytes)
-    ///      Returns 1 if valid, 0 otherwise.
-    function _verifyP256(bytes32 messageHash, bytes32 r, bytes32 s) internal view returns (bool) {
-        (bool success, bytes memory result) = P256_VERIFIER.staticcall(
-            abi.encodePacked(messageHash, r, s, pubKeyX, pubKeyY)
-        );
-        return success && result.length == 32 && abi.decode(result, (uint256)) == 1;
-    }
 }

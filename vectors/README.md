@@ -181,14 +181,15 @@ differently, and a genuine pair must not be refused for that.
 
 Vectors 26 and 27 are about the response a caller actually holds. Vector 17 carries the two tokens
 alone, but the API returns them beside the attestation, in one object, and that object is what gets
-handed to a verifier. The signed attestation does not name the wallet; the `jwt` does, in `sub`. So
-a verifier that checks the attestation and stops has said nothing about the one place the wallet is
-read from. **26** is that whole response as issued, and every verdict passes, `checks.jwt` among
-them. **27** changes `sub` inside `data.jwt` and nothing else: the attestation and its companion
-still verify, since neither was touched, and the response is refused at `checks.jwt`. The tokens
-are also bound to the attestation beside them (`jti`, `pass`, `results` and `exp` must equal its
-`id`, `pass`, `results` and `expiresAt`), so a genuine token pair lifted from another attestation
-is refused as well.
+handed to a verifier. The signed attestation does not in general name the wallet (only
+`erc8004_agent` and `erc7710_delegation` results carry it, in `evaluatedCondition`); the `jwt` does,
+in `sub`. So a verifier that checks the attestation and stops has said nothing about the one place
+the wallet is read from. **26** is that whole response as issued, and every verdict passes,
+`checks.jwt` among them. **27** changes `sub` inside `data.jwt` and nothing else: the attestation
+and its companion still verify, since neither was touched, and the response is refused at
+`checks.jwt`. The tokens are also bound to the attestation beside them (`jti`, `pass`, `results` and
+`exp` must equal its `id`, `pass`, `results` and `expiresAt`), so a genuine token pair lifted from
+another attestation is refused as well.
 
 Vectors 19 to 23 are about what a `kid` is allowed to do. A `kid` selects a key, a signing
 scheme, and an artifact type, and a verifier has to honour all three:

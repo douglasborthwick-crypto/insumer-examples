@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "./IWalletStateAttestation.sol";
+import "./InsumerAttestationToken.sol";
 
 /// @notice Single machine-readable access requirement, per ERC-8257.
 struct AccessRequirement {
@@ -15,9 +16,9 @@ enum RequirementLogic { AND, OR }
 
 /// @title IAccessPredicate
 /// @notice Three-function predicate interface for ERC-8257 tool gating.
-/// @dev Inlined here for the example. Downstream consumers should import
-///      from the ERC-8257 reference implementation
-///      (`github.com/ProjectOpenSea/tool-registry`) once the spec settles.
+/// @dev Inlined here so the example compiles on its own; the interface ID
+///      matches ERC-8257. Downstream consumers can import it from the ERC-8257
+///      reference implementation (`github.com/ProjectOpenSea/tool-registry`).
 interface IAccessPredicate {
     function hasAccess(
         uint256 toolId,
@@ -44,56 +45,78 @@ interface IERC165 {
 ///
 /// @dev Architecture
 ///      ----------------------------------------------------------------
-///      InsumerAPI signs an attestation off-chain using ECDSA P-256
-///      (ES256). The signed preimage is selected by the response kid:
-///        "insumer-attest-v2" (keys minted today):
-///          "insumer.attestation.v2" + "\n" + canonical_json({v:2,id,pass,results,attestedAt})
-///        "insumer-attest-v1" (pre-cutover keys):
-///          JSON.stringify({ id, pass, results[], attestedAt })
-///      hashed with SHA-256 and signed under a key whose public
-///      coordinates are published at:
-///        https://api.insumermodel.com/.well-known/jwks.json
-///        The three EC kids share the same coordinates (crv: P-256,
-///        alg: ES256). The set also carries two RFC 9964 AKP entries
-///        (ML-DSA-65 companion, kids insumer-attest-pq1/insumer-trust-pq1)
-///        that this predicate does not consume.
+///      The proof is the attestation's Wallet Auth token: the ES256 JWT
+///      InsumerAPI returns from `POST /v1/attest` with `"format": "jwt"`.
+///      `hasAccess` takes the compact token bytes as `data`, verifies the
+///      signature on-chain, and reads every claim it acts on from the
+///      signed payload itself (see `InsumerAttestationToken`):
+///        sub            the wallet the condition evaluated (== account)
+///        pass           the issuer's verdict (must be true)
+///        conditionHash  the evaluated condition (must be the pinned one)
+///        exp            expiry (must be later than block.timestamp)
+///      Nothing is taken from the caller beside the token, so the caller
+///      cannot pair a genuine signature with claims the issuer did not make.
 ///
-///      The predicate verifies the signature on-chain via the RIP-7212
-///      `P256VERIFY` precompile (`0x0100`). The condition set is bound
-///      to a specific operator-defined policy through
-///      `expectedConditionHash`, set immutably at construction.
+/// @dev Deploying
+///      ----------------------------------------------------------------
+///      Deploy only on a chain that provides the `P256VERIFY` precompile at
+///      `0x0100`; without it every token is denied.
 ///
-///      One predicate deployment per `(issuer key, condition set)` tuple.
-///      For multi-condition sets, deploy multiple predicates and combine
-///      via the ERC-8257 `CompositePredicate` example with AND/OR logic.
+///      One deployment gates one condition, and a token carries exactly one
+///      condition hash. The ERC-8257 reference `CompositePredicate` cannot
+///      combine several of these predicates: it forwards the same `data` to
+///      every term and gives each term 50,000 gas, below what one token
+///      check costs.
+///
+///      Pin a condition on an EVM chain. A token's `sub` names the wallet
+///      the condition evaluated, and `account` is an EVM address, so a
+///      condition on a non-EVM chain can never be satisfied here.
+///
+///      Pin the `conditionHash` your own API key returns. A v1 key and a
+///      v2 key can hash the same condition differently (a `token_balance`
+///      condition does, an `nft_ownership` condition does not), so a
+///      deployment serves the key era whose hash it pins. The hash covers
+///      the condition exactly as written, including the letter case of a
+///      contract address, so an agent must send the same condition object
+///      to obtain a token that matches. Conditions that include the wallet
+///      itself (`erc8004_agent`, `erc7710_delegation`) hash to a value that
+///      gates exactly one wallet.
+///
+///      The pinned hash cannot be reversed into the condition. Publish the
+///      exact condition object, as it must be sent to `/v1/attest`, in the
+///      tool's ERC-8257 manifest so agents know what to request.
+///
+/// @dev What the token proves
+///      ----------------------------------------------------------------
+///      The token is a signed public statement about a wallet's state, not
+///      a secret: it carries no audience, and anyone holding it can present
+///      it until `exp` (30 minutes after issuance, 5 when the request
+///      includes an `erc7710_delegation` condition). It proves the state of
+///      `account`, not that the caller controls `account`. ERC-8257
+///      §"Account Parameter Is Advisory" applies: downstream enforcers MUST
+///      bind `account` to the real principal independently, for example
+///      with the requester-signed AccessProof pattern. The same verdict can
+///      be encoded as more than one valid token string (ECDSA signatures
+///      admit a high-s twin), so a consumer tracking replay keys on the
+///      token's `jti` claim (read from the payload off-chain), not on its
+///      bytes.
 ///
 /// @dev Why this shape rather than direct on-chain reads
 ///      ----------------------------------------------------------------
-///      Predicates that read on-chain holdings (ERC-721, ERC-1155,
-///      subscription) are restricted to state on the same EVM chain as
-///      the registry. Wallet state on non-EVM chains (Solana, XRPL,
-///      Bitcoin) cannot be evaluated from a Solidity predicate. The
-///      off-chain issuer evaluates the condition set against the
-///      relevant chain data, signs a verdict, and the on-chain
-///      predicate verifies the signature.
-///
-/// @dev Distinct from the AccessProof pattern in §"Account Parameter Is
-///      Advisory". That pattern is requester-self-signed: the wallet
-///      signs a challenge tying it to `account`. This pattern is
-///      issuer-signed: an external attestation service signs a verdict
-///      about `account`'s wallet state. Identity-binding (AccessProof)
-///      and state-binding (this predicate) are orthogonal concerns; a
-///      complete access scheme MAY want both.
+///      Predicates that read holdings on-chain (ERC-721, ERC-1155,
+///      subscription) see only the chain the registry is deployed on. An
+///      issuer-signed verdict lets a registry on one chain gate on wallet
+///      state held on another, evaluated off-chain and verified here.
 ///
 /// @dev Gas budget
 ///      ----------------------------------------------------------------
-///      `P256VERIFY` precompile: ~3,450 gas. ABI decode of the seven-tuple
-///      payload + bookkeeping: ~3-5,000 gas. Total well under the
-///      ERC-8257 `staticcall` cap of 200,000 gas.
+///      About 130,000 gas for a typical single-condition token, and under
+///      200,000 up to the 64 KB token limit, including for malformed input.
+///      The reference registry calls `hasAccess` with 200,000 gas.
 ///
 /// @dev GETTING CREDENTIALS
 ///      ----------------------------------------------------------------
-///      Free tier — no credit card. 100 daily reads + 10 attestation credits.
+///      Free tier, no credit card: 100 daily reads + 10 attestation credits.
 ///
 ///      Developers (email-based):
 ///        POST https://api.insumermodel.com/v1/keys/create
@@ -103,20 +126,19 @@ interface IERC165 {
 ///        POST https://api.insumermodel.com/v1/keys/buy
 ///        body: {"txHash":"0x...","chainId":8453,"amount":5,"appName":"my-agent"}
 ///        Agent sends USDC/USDT/BTC to the platform wallet, then POSTs the tx
-///        hash — sending wallet is the identity. Stablecoin auto-detected from
-///        the transfer log. Minimum 5 stablecoin units; credits scale with
-///        amount.
+///        hash; the sending wallet is the identity. Stablecoin auto-detected
+///        from the transfer log. Minimum 5 stablecoin units; credits scale
+///        with amount.
 ///
-///      Once the key is provisioned, fetch a signed attestation:
+///      Once the key is provisioned, fetch a signed attestation as a token:
 ///        POST https://api.insumermodel.com/v1/attest
 ///        headers: {"X-API-Key": "<your_key>"}
-///        body: {"wallet": "0x...", "conditions": [{"type":"token_balance",
-///               "contractAddress":"0x...", "chainId": 1, "threshold": "1",
-///               "label": "USDC >= 1 on Ethereum"}]}
+///        body: {"wallet": "0x...", "format": "jwt", "conditions": [{
+///               "type":"token_balance", "contractAddress":"0x...",
+///               "chainId": 1, "threshold": "1", "label": "USDC >= 1"}]}
 ///
-///      Decode the response into the seven-tuple `data` payload (see
-///      IWalletStateAttestation.sol for the layout) and pass it to
-///      `IToolRegistry.hasAccess(toolId, account, data)`.
+///      Pass `bytes(response.data.jwt)` to
+///      `IToolRegistry.hasAccess(toolId, account, data)` unchanged.
 ///
 ///      API reference:        https://insumermodel.com/developers/api-reference/
 ///      JWKS:                 https://api.insumermodel.com/.well-known/jwks.json
@@ -124,22 +146,6 @@ interface IERC165 {
 ///
 /// @custom:audit status=unaudited
 contract InsumerAccessPredicate is IAccessPredicate, IERC165 {
-    // ─────────────────────────────────────────────
-    // Constants
-    // ─────────────────────────────────────────────
-
-    /// @dev RIP-7212 P256VERIFY precompile address.
-    address constant P256_VERIFIER = address(0x0100);
-
-    /// @dev Maximum block age for a fresh attestation.
-    ///      ~30 minutes on a 2-second-block L2 (matches the API's
-    ///      `expiresAt` TTL of 30 minutes).
-    uint256 public constant MAX_BLOCK_AGE = 900;
-
-    // ─────────────────────────────────────────────
-    // Immutable configuration
-    // ─────────────────────────────────────────────
-
     /// @dev InsumerAPI ECDSA P-256 public-key X coordinate.
     ///      Source: https://api.insumermodel.com/.well-known/jwks.json
     uint256 public immutable pubKeyX;
@@ -147,24 +153,19 @@ contract InsumerAccessPredicate is IAccessPredicate, IERC165 {
     /// @dev InsumerAPI ECDSA P-256 public-key Y coordinate.
     uint256 public immutable pubKeyY;
 
-    /// @dev Hash of the canonical condition set this predicate enforces.
-    ///      Pinned at construction: one predicate gates one condition set.
+    /// @dev The condition this predicate enforces: the 32-byte SHA-256
+    ///      `conditionHash` InsumerAPI returns for it. Pinned at construction.
     bytes32 public immutable expectedConditionHash;
 
     /// @dev URI advertised in `getRequirements` so agents can locate the
     ///      issuer's public-key set.
     string public issuerJWKSURI;
 
-    // ─────────────────────────────────────────────
-    // Construction
-    // ─────────────────────────────────────────────
-
     /// @param _pubKeyX                X coordinate of the InsumerAPI P-256 key.
     /// @param _pubKeyY                Y coordinate of the InsumerAPI P-256 key.
-    /// @param _expectedConditionHash  `keccak256(abi.encodePacked(conditionHashHex))`
-    ///                                where `conditionHashHex` is
-    ///                                `results[0].conditionHash` from the API
-    ///                                (SHA-256 hex, `0x`-prefixed).
+    /// @param _expectedConditionHash  The condition's `conditionHash` exactly as
+    ///                                the API returns it (`0x` + 64 hex digits),
+    ///                                as a `bytes32`.
     /// @param _issuerJWKSURI          HTTPS URL to the issuer's JWKS document.
     constructor(
         uint256 _pubKeyX,
@@ -178,53 +179,25 @@ contract InsumerAccessPredicate is IAccessPredicate, IERC165 {
         issuerJWKSURI = _issuerJWKSURI;
     }
 
-    // ─────────────────────────────────────────────
-    // IAccessPredicate
-    // ─────────────────────────────────────────────
-
     /// @inheritdoc IAccessPredicate
     /// @dev Returns `false` on any verification failure rather than
     ///      reverting, so `IToolRegistry.tryHasAccess` distinguishes a
     ///      clean denial `(true, false)` from a predicate malfunction
     ///      `(false, false)` per ERC-8257 §"Predicate Reverting".
     ///
-    ///      The `account` argument is bound to the attestation via
-    ///      `wallet == account`. ERC-8257 §"Account Parameter Is
-    ///      Advisory" still applies: the registry does not authenticate
-    ///      `msg.sender == account`, and downstream enforcers MUST bind
-    ///      `account` to the real principal independently.
-    ///
-    /// @param account  Address being checked against the attestation.
-    /// @param data     `abi.encode(bool pass, address wallet,`
-    ///                 `bytes32 conditionHash, uint256 blockNumber,`
-    ///                 `bytes32 r, bytes32 s, bytes32 messageHash)`
+    /// @param account  Address being checked; must equal the token's `sub`.
+    /// @param data     The compact JWT, as ASCII bytes.
     function hasAccess(
         uint256 /* toolId */,
         address account,
         bytes calldata data
     ) external view override returns (bool) {
-        if (data.length == 0) return false;
-
-        (
-            bool pass,
-            address wallet,
-            bytes32 conditionHash,
-            uint256 blockNumber,
-            bytes32 r,
-            bytes32 s,
-            bytes32 messageHash
-        ) = abi.decode(
-            data,
-            (bool, address, bytes32, uint256, bytes32, bytes32, bytes32)
-        );
-
-        if (!pass) return false;
-        if (wallet != account) return false;
-        if (conditionHash != expectedConditionHash) return false;
-        if (blockNumber > block.number) return false;
-        if (block.number - blockNumber > MAX_BLOCK_AGE) return false;
-
-        return _verifyP256(messageHash, r, s);
+        (bool ok, InsumerAttestationToken.Claims memory c) = InsumerAttestationToken.read(data, pubKeyX, pubKeyY);
+        return ok
+            && c.pass
+            && c.sub == account
+            && c.conditionHash == expectedConditionHash
+            && c.exp > block.timestamp;
     }
 
     /// @inheritdoc IAccessPredicate
@@ -248,10 +221,6 @@ contract InsumerAccessPredicate is IAccessPredicate, IERC165 {
         logic = RequirementLogic.AND;
     }
 
-    // ─────────────────────────────────────────────
-    // IERC165
-    // ─────────────────────────────────────────────
-
     /// @inheritdoc IERC165
     /// @dev MUST advertise both `IERC165` and `IAccessPredicate` so that
     ///      registration validation per ERC-8257 §"Predicate Validation
@@ -260,19 +229,5 @@ contract InsumerAccessPredicate is IAccessPredicate, IERC165 {
         return
             interfaceId == type(IAccessPredicate).interfaceId ||
             interfaceId == type(IERC165).interfaceId;
-    }
-
-    // ─────────────────────────────────────────────
-    // Internal: P-256 signature verification
-    // ─────────────────────────────────────────────
-
-    /// @dev Verify an ECDSA P-256 signature using the RIP-7212 precompile.
-    ///      Input layout: `messageHash || r || s || x || y` (5 × 32 bytes).
-    ///      Returns `true` iff the precompile returned `1`.
-    function _verifyP256(bytes32 messageHash, bytes32 r, bytes32 s) internal view returns (bool) {
-        (bool success, bytes memory result) = P256_VERIFIER.staticcall(
-            abi.encodePacked(messageHash, r, s, pubKeyX, pubKeyY)
-        );
-        return success && result.length == 32 && abi.decode(result, (uint256)) == 1;
     }
 }
