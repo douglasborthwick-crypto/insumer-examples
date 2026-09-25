@@ -142,7 +142,7 @@ async function verifyJWKS() {
   console.log("   JWKS: https://api.thoughtproof.ai/.well-known/jwks.json");
   console.log("   Skill: https://thoughtproof.ai/skill.md");
   console.log(
-    "   Combined format: github.com/douglasborthwick-crypto/insumer-examples/issues/1\n"
+    "   Combined format: github.com/insumerapi/insumer-examples/issues/1\n"
   );
 
   console.log("Done ✅\n");

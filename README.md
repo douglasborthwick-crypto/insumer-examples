@@ -283,11 +283,11 @@ The envelope is open. If you sign a distinct dimension of agent or wallet trust,
 **Checklist (Harold/AgentID pattern, verified in ~30 min):**
 
 1. **JWKS endpoint** at a stable HTTPS URL, RFC 7517 compliant (`kid`, `kty`, `crv`/`alg`, public key material).
-2. **Sample JWT** posted on [issues/1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1) with all claims documented.
+2. **Sample JWT** posted on [issues/1](https://github.com/insumerapi/insumer-examples/issues/1) with all claims documented.
 3. **Signature algorithm** declared — ES256 or EdDSA preferred (reference verifier supports both).
 4. **One-line dimension** — the question your attestation answers (e.g. "What does this wallet hold?").
 
-Post your JWKS URL + sample JWT on [issues/1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1) and tag @douglasborthwick-crypto. We run the verifier against your live signature, flag any issues, and add you to the spec + reference verifier on pass. No fee, no contract, no shared keys. Each issuer stays independent.
+Post your JWKS URL + sample JWT on [issues/1](https://github.com/insumerapi/insumer-examples/issues/1) and tag @douglasborthwick-crypto. We run the verifier against your live signature, flag any issues, and add you to the spec + reference verifier on pass. No fee, no contract, no shared keys. Each issuer stays independent.
 
 **Who uses this:**
 - **Agent commerce** (x402, ERC-8183) — verify wallet + reasoning + behavior before an agent spends money
@@ -302,7 +302,7 @@ Post your JWKS URL + sample JWT on [issues/1](https://github.com/douglasborthwic
 | [x402-sar-integration.js](x402-sar-integration.js) | x402 SAR integration — attestation → payment → delivery proof → offline verification |
 | [x402-sar-integration-settlementwitness.js](x402-sar-integration-settlementwitness.js) | SettlementWitness SAR integration — live endpoint, Ed25519 verification ([nutstrut](https://github.com/nutstrut)) |
 
-Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Would You Trust Your Agent? KYA Is Real.](https://insumermodel.com/blog/multi-attestation-spec-five-shipped-wallet-binding.html) · [Multi-Issuer Verification (predecessor)](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) | Discussion: [insumer-examples#1](https://github.com/douglasborthwick-crypto/insumer-examples/issues/1)
+Spec: [MULTI-ATTESTATION-SPEC.md](./MULTI-ATTESTATION-SPEC.md) | Blog: [Would You Trust Your Agent? KYA Is Real.](https://insumermodel.com/blog/multi-attestation-spec-five-shipped-wallet-binding.html) · [Multi-Issuer Verification (predecessor)](https://insumermodel.com/blog/multi-attestation-four-issuers-one-verification-pass.html) | Discussion: [insumer-examples#1](https://github.com/insumerapi/insumer-examples/issues/1)
 
 ---
 
