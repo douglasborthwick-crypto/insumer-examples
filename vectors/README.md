@@ -85,10 +85,10 @@ resolves to anything in it, so those two hold only for as long as no key by eith
 published. Vector 23 names `insumer-attest-v9` as well but fetches nothing, so it depends on the
 key built into `insumer-verify` rather than on this snapshot.
 
-If a `kid` used here is ever rotated out of the live JWKS, a run against the live endpoint will
-stop matching these expectations while the frozen bytes remain exactly as valid as they were. This
-snapshot is the record of what they were checked against: serve it locally and point the `jwksUrl`
-of the affected vectors at it to reproduce the published verdicts after such a rotation.
+Keys are never removed from the live JWKS (spec Section 4.2): a rotated key stays under its
+original `kid`, so the vectors keep resolving against the live endpoint. This snapshot is still the
+record of what they were checked against: serve it locally and point the `jwksUrl` of the vectors
+at it to reproduce the published verdicts without depending on the live endpoint.
 
 ## What each vector contains
 
